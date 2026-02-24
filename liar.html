@@ -1,0 +1,3604 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LIAR Dataset — Technical Deep-Dive Report</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;0,700;1,300;1,400;1,600&family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=Karla:ital,wght@0,300;0,400;0,500;1,300&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --void: #080c08;
+            --forest: #1a3a1a;
+            --moss: #2d5a2d;
+            --sage: #4a7c4a;
+            --fern: #6aaa6a;
+            --leaf: #a8d4a8;
+            --parchment: #f5f0e8;
+            --paper: #faf8f4;
+            --ink: #0e1a0e;
+            --muted: #6b7a6b;
+            --rule: #cdd8cd;
+            --pale-green: #edf5ed;
+            --verdict-0: #7a1c1c;
+            --verdict-1: #b94040;
+            --verdict-2: #c97c30;
+            --verdict-3: #8a8a30;
+            --verdict-4: #3a7a3a;
+            --verdict-5: #1a5a1a;
+            --code-bg: #0e1a0e;
+            --code-fg: #c8d8c0;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: 'Karla', sans-serif;
+            background: var(--paper);
+            color: var(--ink);
+            font-size: 15px;
+            line-height: 1.8;
+        }
+
+        #sp {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 2px;
+            background: linear-gradient(90deg, var(--forest), var(--fern));
+            z-index: 10000;
+            width: 0%;
+            transition: width 0.1s;
+        }
+
+        #btt {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            width: 40px;
+            height: 40px;
+            background: var(--forest);
+            color: var(--parchment);
+            border: none;
+            cursor: pointer;
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: opacity 0.3s, transform 0.3s, background 0.2s;
+            z-index: 9990;
+            font-family: 'Courier Prime', monospace;
+        }
+
+        #btt.vis {
+            opacity: 1;
+            transform: none;
+        }
+
+        #btt:hover {
+            background: var(--moss);
+        }
+
+        .cover {
+            min-height: 100vh;
+            background: var(--void);
+            color: var(--parchment);
+            position: relative;
+            overflow: hidden;
+            display: grid;
+            grid-template-rows: auto 1fr auto;
+        }
+
+        .cover::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image:
+                repeating-linear-gradient(90deg,
+                    transparent, transparent 79px,
+                    rgba(106, 170, 106, 0.04) 80px);
+            pointer-events: none;
+        }
+
+        .cover::after {
+            content: '';
+            position: absolute;
+            bottom: -20%;
+            left: -10%;
+            width: 800px;
+            height: 800px;
+            background: conic-gradient(from 200deg at 60% 60%,
+                    rgba(122, 28, 28, 0.06) 0deg,
+                    rgba(201, 124, 48, 0.05) 60deg,
+                    rgba(58, 122, 58, 0.06) 120deg,
+                    rgba(26, 90, 26, 0.04) 180deg,
+                    transparent 220deg);
+            border-radius: 50%;
+            pointer-events: none;
+        }
+
+        .cover-nav {
+            padding: 1.8rem 4rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(168, 212, 168, 0.08);
+            position: relative;
+            z-index: 2;
+        }
+
+        .cover-nav-brand {
+            font-family: 'Courier Prime', monospace;
+            font-size: 10px;
+            letter-spacing: 0.3em;
+            text-transform: uppercase;
+            color: rgba(168, 212, 168, 0.4);
+        }
+
+        .cover-nav-meta {
+            font-family: 'Courier Prime', monospace;
+            font-size: 10px;
+            letter-spacing: 0.12em;
+            color: rgba(168, 212, 168, 0.25);
+        }
+
+        .cover-body {
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            position: relative;
+            z-index: 2;
+            padding: 0;
+        }
+
+        .cover-left {
+            padding: 4rem 4rem 3rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            border-right: 1px solid rgba(168, 212, 168, 0.07);
+        }
+
+        .cover-eyebrow {
+            font-family: 'Courier Prime', monospace;
+            font-size: 10px;
+            letter-spacing: 0.35em;
+            text-transform: uppercase;
+            color: var(--fern);
+            margin-bottom: 2rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .cover-eyebrow::after {
+            content: '';
+            flex: 1;
+            max-width: 60px;
+            height: 1px;
+            background: var(--fern);
+            opacity: 0.5;
+        }
+
+        .cover-title {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: clamp(4rem, 9vw, 8.5rem);
+            font-weight: 700;
+            line-height: 0.88;
+            letter-spacing: -0.03em;
+            color: var(--parchment);
+            margin-bottom: 1rem;
+        }
+
+        .cover-title sup {
+            font-size: 0.22em;
+            font-weight: 300;
+            vertical-align: super;
+            letter-spacing: 0.2em;
+            font-family: 'Courier Prime', monospace;
+            color: var(--fern);
+            opacity: 0.8;
+        }
+
+        .cover-subtitle {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: clamp(1rem, 2vw, 1.4rem);
+            font-weight: 300;
+            font-style: italic;
+            color: rgba(245, 240, 232, 0.4);
+            margin-bottom: 3rem;
+            line-height: 1.5;
+            max-width: 480px;
+        }
+
+        .truth-spectrum {
+            margin: 2.5rem 0;
+            position: relative;
+        }
+
+        .ts-label {
+            font-family: 'Courier Prime', monospace;
+            font-size: 9px;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: rgba(168, 212, 168, 0.3);
+            margin-bottom: 0.8rem;
+        }
+
+        .ts-track {
+            height: 48px;
+            border-radius: 2px;
+            background: linear-gradient(90deg,
+                    var(--verdict-0) 0%,
+                    var(--verdict-1) 18%,
+                    var(--verdict-2) 35%,
+                    var(--verdict-3) 52%,
+                    var(--verdict-4) 70%,
+                    var(--verdict-5) 100%);
+            position: relative;
+            overflow: visible;
+            box-shadow: 0 0 40px rgba(58, 122, 58, 0.12);
+        }
+
+        .ts-labels {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 0.6rem;
+        }
+
+        .ts-lbl {
+            font-family: 'Courier Prime', monospace;
+            font-size: 8.5px;
+            letter-spacing: 0.05em;
+            color: rgba(168, 212, 168, 0.4);
+            text-align: center;
+            flex: 1;
+        }
+
+        .ts-tick {
+            position: absolute;
+            top: -4px;
+            width: 1px;
+            height: calc(100% + 8px);
+            background: rgba(8, 12, 8, 0.4);
+        }
+
+        .cover-stats {
+            display: flex;
+            gap: 0;
+            margin-top: 2rem;
+            border: 1px solid rgba(168, 212, 168, 0.1);
+        }
+
+        .cs-item {
+            flex: 1;
+            padding: 1.2rem 1.5rem;
+            border-right: 1px solid rgba(168, 212, 168, 0.08);
+            transition: background 0.2s;
+        }
+
+        .cs-item:last-child {
+            border-right: none;
+        }
+
+        .cs-item:hover {
+            background: rgba(168, 212, 168, 0.03);
+        }
+
+        .cs-val {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--parchment);
+            line-height: 1;
+            margin-bottom: 3px;
+        }
+
+        .cs-lbl {
+            font-family: 'Courier Prime', monospace;
+            font-size: 8px;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: rgba(168, 212, 168, 0.3);
+        }
+
+        .cover-right {
+            padding: 3rem 2.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+            background: rgba(26, 58, 26, 0.08);
+        }
+
+        .cr-heading {
+            font-family: 'Courier Prime', monospace;
+            font-size: 9px;
+            letter-spacing: 0.25em;
+            text-transform: uppercase;
+            color: rgba(168, 212, 168, 0.25);
+            margin-bottom: 1.5rem;
+            padding-bottom: 0.8rem;
+            border-bottom: 1px solid rgba(168, 212, 168, 0.08);
+        }
+
+        .verdict-ledger {
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+            flex: 1;
+        }
+
+        .vl-row {
+            display: grid;
+            grid-template-columns: 14px 1fr auto;
+            gap: 0.8rem;
+            align-items: center;
+            padding: 0.9rem 0;
+            border-bottom: 1px solid rgba(168, 212, 168, 0.06);
+            transition: background 0.2s, padding-left 0.2s;
+            cursor: default;
+        }
+
+        .vl-row:hover {
+            background: rgba(168, 212, 168, 0.03);
+            padding-left: 6px;
+        }
+
+        .vl-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .vl-name {
+            font-family: 'Courier Prime', monospace;
+            font-size: 11px;
+            color: rgba(245, 240, 232, 0.7);
+            letter-spacing: 0.03em;
+        }
+
+        .vl-count {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--parchment);
+            text-align: right;
+        }
+
+        .vl-bar-wrap {
+            grid-column: 1 / -1;
+            padding: 0 0 0.4rem 0;
+        }
+
+        .vl-bar-track {
+            height: 3px;
+            background: rgba(168, 212, 168, 0.08);
+            border-radius: 1px;
+            overflow: hidden;
+        }
+
+        .vl-bar-fill {
+            height: 100%;
+            border-radius: 1px;
+            width: 0;
+            transition: width 1.4s cubic-bezier(.22, .8, .46, 1);
+        }
+
+        .vl-bar-fill.anim {
+            width: var(--w) !important;
+        }
+
+        .cover-footer {
+            padding: 1.5rem 4rem;
+            border-top: 1px solid rgba(168, 212, 168, 0.07);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: relative;
+            z-index: 2;
+        }
+
+        .cf-left {
+            font-family: 'Courier Prime', monospace;
+            font-size: 10px;
+            color: rgba(168, 212, 168, 0.25);
+            line-height: 1.8;
+        }
+
+        .cf-right {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .cf-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            overflow: hidden;
+            border: 1px solid rgba(106, 170, 106, 0.2);
+            flex-shrink: 0;
+        }
+
+        .cf-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 50%;
+        }
+
+        .cf-author-name {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 14px;
+            font-weight: 600;
+            color: rgba(245, 240, 232, 0.6);
+        }
+
+        .doc-body {
+            max-width: 1080px;
+            margin: 0 auto;
+            padding: 5rem 3rem;
+        }
+
+        p {
+            margin-bottom: 1.1rem;
+            color: #283028;
+        }
+
+        .section {
+            margin-bottom: 5.5rem;
+        }
+
+        .sec-header {
+            display: grid;
+            grid-template-columns: 48px 1fr;
+            gap: 1.5rem;
+            align-items: baseline;
+            margin-bottom: 2.5rem;
+        }
+
+        .sec-num {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 3rem;
+            font-weight: 300;
+            color: rgba(45, 90, 45, 0.18);
+            line-height: 1;
+        }
+
+        .sec-title-wrap {
+            border-bottom: 1.5px solid var(--ink);
+            padding-bottom: 0.8rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .sec-title-wrap::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            height: 1.5px;
+            width: 0%;
+            background: var(--moss);
+            transition: width 1s cubic-bezier(.22, .8, .46, 1);
+        }
+
+        .sec-title-wrap.anim::after {
+            width: 100%;
+        }
+
+        .sec-sup {
+            font-family: 'Courier Prime', monospace;
+            font-size: 9px;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: var(--sage);
+            display: block;
+            margin-bottom: 0.3rem;
+        }
+
+        .sec-title {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 2.2rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            line-height: 1.1;
+        }
+
+        .callout {
+            padding: 1.4rem 1.8rem;
+            margin: 2rem 0;
+            border-left: 2px solid var(--moss);
+            background: var(--pale-green);
+            position: relative;
+        }
+
+        .callout.danger {
+            border-left-color: var(--verdict-0);
+            background: rgba(122, 28, 28, 0.04);
+        }
+
+        .callout.info {
+            border-left-color: var(--forest);
+            background: rgba(26, 58, 26, 0.04);
+        }
+
+        .callout-lbl {
+            font-family: 'Courier Prime', monospace;
+            font-size: 9px;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 0.5rem;
+        }
+
+        .callout p {
+            margin-bottom: 0;
+            font-size: 14px;
+        }
+
+        .schema-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 2.5rem 0;
+            font-size: 13.5px;
+        }
+
+        .schema-table th {
+            font-family: 'Courier Prime', monospace;
+            font-size: 9px;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            padding: 10px 14px;
+            text-align: left;
+            background: var(--forest);
+            color: var(--leaf);
+            border-right: 1px solid rgba(168, 212, 168, 0.1);
+        }
+
+        .schema-table th:last-child {
+            border-right: none;
+        }
+
+        .schema-table td {
+            padding: 11px 14px;
+            border-bottom: 1px solid var(--rule);
+            vertical-align: top;
+        }
+
+        .schema-table tbody tr:hover td {
+            background: var(--pale-green);
+        }
+
+        .td-field {
+            font-family: 'Courier Prime', monospace;
+            font-size: 12px;
+            color: var(--moss);
+            font-weight: 700;
+        }
+
+        .td-type {
+            font-family: 'Courier Prime', monospace;
+            font-size: 11px;
+            color: var(--muted);
+            background: rgba(74, 124, 74, 0.06);
+            padding: 1px 6px;
+            border-radius: 2px;
+        }
+
+        .badge-key {
+            display: inline-block;
+            font-family: 'Courier Prime', monospace;
+            font-size: 9px;
+            padding: 1px 7px;
+            background: rgba(26, 58, 26, 0.1);
+            color: var(--forest);
+            border: 1px solid rgba(26, 58, 26, 0.2);
+            border-radius: 1px;
+        }
+
+        .verdict-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1px;
+            background: var(--rule);
+            border: 1px solid var(--rule);
+            margin: 2.5rem 0;
+        }
+
+        .verdict-card {
+            background: var(--paper);
+            padding: 2rem 1.5rem;
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.25s, box-shadow 0.25s;
+            cursor: default;
+        }
+
+        .verdict-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 24px rgba(13, 26, 14, 0.1);
+            z-index: 2;
+        }
+
+        .verdict-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+        }
+
+        .vc-0::before {
+            background: var(--verdict-0);
+        }
+
+        .vc-1::before {
+            background: var(--verdict-1);
+        }
+
+        .vc-2::before {
+            background: var(--verdict-2);
+        }
+
+        .vc-3::before {
+            background: var(--verdict-3);
+        }
+
+        .vc-4::before {
+            background: var(--verdict-4);
+        }
+
+        .vc-5::before {
+            background: var(--verdict-5);
+        }
+
+        .verdict-card-rank {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 3.5rem;
+            font-weight: 700;
+            line-height: 1;
+            margin-bottom: 0.3rem;
+            opacity: 0.12;
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+        }
+
+        .verdict-card-label {
+            font-family: 'Courier Prime', monospace;
+            font-size: 10px;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            margin-bottom: 0.6rem;
+            font-weight: 700;
+        }
+
+        .vc-0 .verdict-card-label {
+            color: var(--verdict-0);
+        }
+
+        .vc-1 .verdict-card-label {
+            color: var(--verdict-1);
+        }
+
+        .vc-2 .verdict-card-label {
+            color: var(--verdict-2);
+        }
+
+        .vc-3 .verdict-card-label {
+            color: var(--verdict-3);
+        }
+
+        .vc-4 .verdict-card-label {
+            color: var(--verdict-4);
+        }
+
+        .vc-5 .verdict-card-label {
+            color: var(--verdict-5);
+        }
+
+        .verdict-card-count {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 2.4rem;
+            font-weight: 700;
+            line-height: 1;
+            color: var(--ink);
+            margin-bottom: 0.3rem;
+        }
+
+        .verdict-card-pct {
+            font-family: 'Courier Prime', monospace;
+            font-size: 11px;
+            color: var(--muted);
+        }
+
+        .verdict-card-desc {
+            font-size: 12.5px;
+            color: var(--muted);
+            line-height: 1.55;
+            margin-top: 0.8rem;
+            padding-top: 0.8rem;
+            border-top: 1px solid var(--rule);
+        }
+
+        .spectrum-visual {
+            margin: 3rem 0;
+            border: 1px solid var(--rule);
+            overflow: hidden;
+        }
+
+        .sv-header {
+            background: var(--forest);
+            color: var(--leaf);
+            padding: 1rem 1.5rem;
+            font-family: 'Courier Prime', monospace;
+            font-size: 9px;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+        }
+
+        .sv-body {
+            padding: 1.5rem 1.5rem;
+        }
+
+        .sv-row {
+            display: grid;
+            grid-template-columns: 130px 1fr 80px 80px;
+            gap: 1rem;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .sv-name {
+            font-family: 'Courier Prime', monospace;
+            font-size: 11px;
+            color: var(--forest);
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .sv-track {
+            height: 22px;
+            background: var(--pale-green);
+            border-radius: 1px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .sv-fill {
+            height: 100%;
+            border-radius: 1px;
+            width: 0;
+            transition: width 1.3s cubic-bezier(.22, .8, .46, 1);
+            position: relative;
+            display: flex;
+            align-items: center;
+            padding-left: 8px;
+        }
+
+        .sv-fill.anim {
+            width: var(--w) !important;
+        }
+
+        .sv-fill-label {
+            font-family: 'Courier Prime', monospace;
+            font-size: 9px;
+            color: rgba(255, 255, 255, 0.7);
+            letter-spacing: 0.05em;
+            white-space: nowrap;
+            overflow: hidden;
+        }
+
+        .sv-count {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 1.1rem;
+            font-weight: 700;
+            text-align: right;
+        }
+
+        .sv-pct {
+            font-family: 'Courier Prime', monospace;
+            font-size: 11px;
+            color: var(--muted);
+            text-align: right;
+        }
+
+        .meta-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            margin: 2.5rem 0;
+        }
+
+        .meta-panel {
+            border: 1px solid var(--rule);
+            overflow: hidden;
+        }
+
+        .meta-panel-header {
+            background: var(--forest);
+            color: var(--leaf);
+            padding: 0.8rem 1.2rem;
+            font-family: 'Courier Prime', monospace;
+            font-size: 9px;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+        }
+
+        .meta-panel-body {
+            padding: 1.2rem;
+        }
+
+        .meta-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 1rem;
+            padding: 0.6rem 0;
+            border-bottom: 1px solid var(--rule);
+            font-size: 13px;
+        }
+
+        .meta-item:last-child {
+            border-bottom: none;
+        }
+
+        .meta-key {
+            font-family: 'Courier Prime', monospace;
+            font-size: 11px;
+            color: var(--muted);
+            flex-shrink: 0;
+        }
+
+        .meta-val {
+            font-size: 13px;
+            color: var(--ink);
+            text-align: right;
+            line-height: 1.5;
+        }
+
+        .split-view {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1px;
+            background: var(--rule);
+            border: 1px solid var(--rule);
+            margin: 2.5rem 0;
+        }
+
+        .sv-panel {
+            background: var(--paper);
+            padding: 2rem;
+        }
+
+        .sv-panel-label {
+            font-family: 'Courier Prime', monospace;
+            font-size: 9px;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 1rem;
+            padding-bottom: 0.6rem;
+            border-bottom: 1px solid var(--rule);
+        }
+
+        .speaker-bar {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 0.7rem;
+        }
+
+        .spk-name {
+            font-family: 'Courier Prime', monospace;
+            font-size: 10px;
+            width: 160px;
+            flex-shrink: 0;
+            color: var(--muted);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .spk-track {
+            flex: 1;
+            height: 12px;
+            background: var(--pale-green);
+            border-radius: 1px;
+            overflow: hidden;
+        }
+
+        .spk-fill {
+            height: 100%;
+            background: var(--moss);
+            width: 0;
+            transition: width 1.2s cubic-bezier(.22, .8, .46, 1);
+        }
+
+        .spk-fill.anim {
+            width: var(--w) !important;
+        }
+
+        .spk-count {
+            font-family: 'Courier Prime', monospace;
+            font-size: 10px;
+            color: var(--forest);
+            width: 40px;
+            text-align: right;
+            flex-shrink: 0;
+        }
+
+        .credit-demo {
+            border: 1px solid var(--rule);
+            margin: 2.5rem 0;
+            overflow: hidden;
+        }
+
+        .cd-header {
+            background: var(--void);
+            color: var(--leaf);
+            padding: 1rem 1.5rem;
+            font-family: 'Courier Prime', monospace;
+            font-size: 9px;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+        }
+
+        .cd-speaker-row {
+            display: grid;
+            grid-template-columns: 180px 1fr;
+            border-bottom: 1px solid var(--rule);
+            transition: background 0.2s;
+        }
+
+        .cd-speaker-row:last-child {
+            border-bottom: none;
+        }
+
+        .cd-speaker-row:hover {
+            background: var(--pale-green);
+        }
+
+        .cd-speaker-info {
+            padding: 1.2rem 1.5rem;
+            border-right: 1px solid var(--rule);
+        }
+
+        .cd-speaker-name {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 15px;
+            font-weight: 700;
+            margin-bottom: 2px;
+        }
+
+        .cd-speaker-role {
+            font-family: 'Courier Prime', monospace;
+            font-size: 10px;
+            color: var(--muted);
+        }
+
+        .cd-credits {
+            padding: 1.2rem 1.5rem;
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .cd-credit-pill {
+            font-family: 'Courier Prime', monospace;
+            font-size: 9px;
+            padding: 3px 8px;
+            border-radius: 20px;
+            letter-spacing: 0.05em;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .cd-credit-pill .pill-n {
+            font-size: 12px;
+            font-family: 'Cormorant Garamond', serif;
+            font-weight: 700;
+        }
+
+        .bench-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 2.5rem 0;
+            font-size: 13.5px;
+        }
+
+        .bench-table th {
+            font-family: 'Courier Prime', monospace;
+            font-size: 9px;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            padding: 10px 14px;
+            text-align: left;
+            background: var(--void);
+            color: rgba(168, 212, 168, 0.5);
+            border-right: 1px solid rgba(168, 212, 168, 0.07);
+        }
+
+        .bench-table th:last-child {
+            border-right: none;
+        }
+
+        .bench-table td {
+            padding: 12px 14px;
+            border-bottom: 1px solid var(--rule);
+            vertical-align: middle;
+        }
+
+        .bench-table tbody tr:hover td {
+            background: var(--pale-green);
+        }
+
+        .bench-table tbody tr {
+            transition: background 0.2s, transform 0.2s;
+        }
+
+        .best-score {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: var(--forest);
+        }
+
+        .acc-bar-mini {
+            display: inline-block;
+            height: 8px;
+            border-radius: 1px;
+            margin-left: 6px;
+            vertical-align: middle;
+            background: var(--moss);
+            opacity: 0.4;
+        }
+
+        .code-block {
+            background: var(--code-bg);
+            padding: 1.6rem 2rem;
+            margin: 2rem 0;
+            overflow-x: auto;
+            border-left: 2px solid var(--moss);
+            opacity: 0;
+            transform: translateY(12px);
+            transition: opacity 0.55s, transform 0.55s;
+        }
+
+        .code-block.vis {
+            opacity: 1;
+            transform: none;
+        }
+
+        .code-block pre {
+            font-family: 'Courier Prime', monospace;
+            font-size: 12px;
+            color: var(--code-fg);
+            line-height: 1.9;
+            white-space: pre;
+        }
+
+        .cc {
+            color: #3a5a3a;
+        }
+
+        .cs {
+            color: #8ab88a;
+        }
+
+        .ck {
+            color: #6aaa6a;
+        }
+
+        .cn {
+            color: #b8a860;
+        }
+
+        .pipeline {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1px;
+            background: var(--ink);
+            border: 1.5px solid var(--ink);
+            margin: 2.5rem 0;
+        }
+
+        .pipe-step {
+            background: var(--paper);
+            padding: 2rem 1.8rem;
+            position: relative;
+            transition: background 0.2s;
+        }
+
+        .pipe-step:hover {
+            background: var(--pale-green);
+        }
+
+        .ps-num {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 4rem;
+            font-weight: 700;
+            color: rgba(45, 90, 45, 0.06);
+            position: absolute;
+            top: 0.5rem;
+            right: 1rem;
+            line-height: 1;
+        }
+
+        .ps-title {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 1.15rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            position: relative;
+        }
+
+        .ps-desc {
+            font-size: 13px;
+            color: var(--muted);
+            line-height: 1.65;
+            position: relative;
+        }
+
+        .citation-box {
+            background: var(--void);
+            color: var(--parchment);
+            padding: 2.5rem 3rem;
+            margin: 3rem 0;
+        }
+
+        .cb-title {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--leaf);
+            margin-bottom: 1.2rem;
+            padding-bottom: 0.8rem;
+            border-bottom: 1px solid rgba(168, 212, 168, 0.12);
+            letter-spacing: 0.03em;
+        }
+
+        .cb-entry {
+            font-family: 'Courier Prime', monospace;
+            font-size: 11.5px;
+            color: rgba(168, 212, 168, 0.5);
+            line-height: 1.9;
+            margin-bottom: 1rem;
+        }
+
+        .cb-entry strong {
+            color: rgba(168, 212, 168, 0.8);
+            font-weight: 700;
+        }
+
+        .cb-entry em {
+            color: rgba(168, 212, 168, 0.65);
+            font-style: italic;
+        }
+
+        .author-strip {
+            background: var(--forest);
+            padding: 4rem;
+            display: flex;
+            align-items: center;
+            gap: 3rem;
+            flex-wrap: wrap;
+        }
+
+        .as-avatar {
+            width: 88px;
+            height: 88px;
+            border-radius: 50%;
+            overflow: hidden;
+            border: 2px solid rgba(106, 170, 106, 0.3);
+            flex-shrink: 0;
+            position: relative;
+        }
+
+        .as-avatar::after {
+            content: '';
+            position: absolute;
+            inset: -3px;
+            border-radius: 50%;
+            border: 1px solid rgba(106, 170, 106, 0.15);
+            animation: ring 2.5s ease-in-out infinite;
+        }
+
+        @keyframes ring {
+
+            0%,
+            100% {
+                transform: scale(1);
+                opacity: 0.5;
+            }
+
+            50% {
+                transform: scale(1.08);
+                opacity: 0.15;
+            }
+        }
+
+        .as-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 50%;
+            display: block;
+        }
+
+        .as-info {
+            flex: 1;
+            min-width: 220px;
+        }
+
+        .as-lbl {
+            font-family: 'Courier Prime', monospace;
+            font-size: 9px;
+            letter-spacing: 0.25em;
+            text-transform: uppercase;
+            color: rgba(168, 212, 168, 0.35);
+            margin-bottom: 0.3rem;
+        }
+
+        .as-name {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 2.2rem;
+            font-weight: 700;
+            color: var(--parchment);
+            line-height: 1.1;
+            margin-bottom: 0.4rem;
+        }
+
+        .as-desc {
+            font-size: 13px;
+            color: rgba(168, 212, 168, 0.4);
+            line-height: 1.7;
+        }
+
+        .as-links {
+            display: flex;
+            flex-direction: column;
+            gap: 0.6rem;
+        }
+
+        .as-link {
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+            text-decoration: none;
+            padding: 0.6rem 1.2rem;
+            border: 1px solid rgba(106, 170, 106, 0.15);
+            min-width: 230px;
+            transition: all 0.2s;
+            background: rgba(106, 170, 106, 0.03);
+        }
+
+        .as-link:hover {
+            border-color: rgba(106, 170, 106, 0.3);
+            background: rgba(106, 170, 106, 0.06);
+        }
+
+        .as-link-plat {
+            font-family: 'Courier Prime', monospace;
+            font-size: 9px;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: rgba(168, 212, 168, 0.3);
+            display: block;
+        }
+
+        .as-link-handle {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--parchment);
+        }
+
+        .doc-footer {
+            background: var(--void);
+            color: rgba(106, 170, 106, 0.2);
+            padding: 1.5rem 3rem;
+            text-align: center;
+            font-family: 'Courier Prime', monospace;
+            font-size: 10px;
+            letter-spacing: 0.1em;
+        }
+
+        .sample-section {
+            margin: 2.5rem 0;
+        }
+
+        .record-card {
+            border: 1.5px solid var(--ink);
+            margin-bottom: 1.5rem;
+            position: relative;
+            overflow: hidden;
+            transition: box-shadow 0.3s;
+        }
+
+        .record-card:hover {
+            box-shadow: 5px 5px 0 var(--ink);
+        }
+
+        .rc-verdict-bar {
+            height: 5px;
+        }
+
+        .rc-top {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 1rem;
+            padding: 1.2rem 1.5rem 0.8rem;
+            border-bottom: 1px solid var(--rule);
+            background: var(--pale-green);
+        }
+
+        .rc-id {
+            font-family: 'Courier Prime', monospace;
+            font-size: 9px;
+            letter-spacing: 0.15em;
+            color: var(--muted);
+            margin-bottom: 0.3rem;
+        }
+
+        .rc-statement {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 1.05rem;
+            font-style: italic;
+            font-weight: 600;
+            line-height: 1.45;
+            color: var(--ink);
+            max-width: 740px;
+        }
+
+        .rc-verdict-chip {
+            font-family: 'Courier Prime', monospace;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            padding: 5px 14px;
+            border-radius: 2px;
+            white-space: nowrap;
+            align-self: flex-start;
+            flex-shrink: 0;
+        }
+
+        .vc-pants {
+            background: rgba(122, 28, 28, 0.12);
+            color: var(--verdict-0);
+            border: 1px solid rgba(122, 28, 28, 0.3);
+        }
+
+        .vc-false {
+            background: rgba(185, 64, 64, 0.12);
+            color: var(--verdict-1);
+            border: 1px solid rgba(185, 64, 64, 0.3);
+        }
+
+        .vc-barely {
+            background: rgba(201, 124, 48, 0.12);
+            color: var(--verdict-2);
+            border: 1px solid rgba(201, 124, 48, 0.3);
+        }
+
+        .vc-half {
+            background: rgba(138, 138, 48, 0.12);
+            color: var(--verdict-3);
+            border: 1px solid rgba(138, 138, 48, 0.3);
+        }
+
+        .vc-mostly {
+            background: rgba(58, 122, 58, 0.12);
+            color: var(--verdict-4);
+            border: 1px solid rgba(58, 122, 58, 0.3);
+        }
+
+        .vc-true {
+            background: rgba(26, 90, 26, 0.12);
+            color: var(--verdict-5);
+            border: 1px solid rgba(26, 90, 26, 0.3);
+        }
+
+        .rc-meta-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0;
+            border-bottom: 1px solid var(--rule);
+        }
+
+        .rc-meta-cell {
+            padding: 0.7rem 1.2rem;
+            border-right: 1px solid var(--rule);
+            min-width: 120px;
+        }
+
+        .rc-meta-cell:last-child {
+            border-right: none;
+        }
+
+        .rc-meta-key {
+            font-family: 'Courier Prime', monospace;
+            font-size: 8px;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 3px;
+        }
+
+        .rc-meta-val {
+            font-family: 'Courier Prime', monospace;
+            font-size: 11px;
+            color: var(--forest);
+            font-weight: 700;
+            line-height: 1.3;
+        }
+
+        .rc-credit-row {
+            padding: 0.8rem 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            background: rgba(8, 12, 8, 0.02);
+        }
+
+        .rc-credit-label {
+            font-family: 'Courier Prime', monospace;
+            font-size: 9px;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-right: 0.4rem;
+            flex-shrink: 0;
+        }
+
+        .rc-credit-pill {
+            font-family: 'Courier Prime', monospace;
+            font-size: 9px;
+            padding: 2px 8px;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            gap: 3px;
+        }
+
+        .rc-credit-pill b {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .rc-context-row {
+            padding: 0.6rem 1.5rem;
+            font-size: 12.5px;
+            color: var(--muted);
+            font-style: italic;
+            border-top: 1px solid var(--rule);
+        }
+
+        .rc-context-row span {
+            font-family: 'Courier Prime', monospace;
+            font-size: 9px;
+            font-style: normal;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            margin-right: 0.5rem;
+        }
+
+        .tsv-raw {
+            background: var(--code-bg);
+            padding: 1.4rem 2rem;
+            margin: 2rem 0;
+            overflow-x: auto;
+            border-left: 2px solid var(--moss);
+        }
+
+        .tsv-raw pre {
+            font-family: 'Courier Prime', monospace;
+            font-size: 11px;
+            color: var(--code-fg);
+            line-height: 2;
+            white-space: pre;
+        }
+
+        .tsv-field {
+            color: #6aaa6a;
+        }
+
+        .tsv-val {
+            color: #c8d8c0;
+        }
+
+        .tsv-num {
+            color: #b8a860;
+        }
+
+        .tsv-label-0 {
+            color: #e07070;
+            font-weight: 700;
+        }
+
+        .tsv-label-1 {
+            color: #c87070;
+            font-weight: 700;
+        }
+
+        .tsv-label-2 {
+            color: #c8a060;
+            font-weight: 700;
+        }
+
+        .tsv-label-3 {
+            color: #b0b050;
+            font-weight: 700;
+        }
+
+        .tsv-label-4 {
+            color: #70b870;
+            font-weight: 700;
+        }
+
+        .tsv-label-5 {
+            color: #50a850;
+            font-weight: 700;
+        }
+
+        .filter-tabs {
+            display: flex;
+            gap: 0;
+            border: 1px solid var(--rule);
+            margin-bottom: 1.5rem;
+            overflow: hidden;
+        }
+
+        .ftab {
+            flex: 1;
+            padding: 0.6rem 0.4rem;
+            text-align: center;
+            font-family: 'Courier Prime', monospace;
+            font-size: 9px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            cursor: pointer;
+            border-right: 1px solid var(--rule);
+            transition: background 0.2s, color 0.2s;
+            background: var(--paper);
+            color: var(--muted);
+            user-select: none;
+        }
+
+        .ftab:last-child {
+            border-right: none;
+        }
+
+        .ftab.active {
+            background: var(--forest);
+            color: var(--leaf);
+        }
+
+        .ftab:hover:not(.active) {
+            background: var(--pale-green);
+            color: var(--forest);
+        }
+
+        .record-card.hidden {
+            display: none;
+        }
+
+        .heatmap-wrap {
+            overflow-x: auto;
+            margin: 2rem 0;
+        }
+
+        .heatmap-table {
+            border-collapse: collapse;
+            font-family: 'Courier Prime', monospace;
+            font-size: 11px;
+            min-width: 520px;
+        }
+
+        .heatmap-table th {
+            padding: 8px 10px;
+            font-size: 9px;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--muted);
+            text-align: center;
+            background: var(--pale-green);
+            border: 1px solid var(--rule);
+        }
+
+        .heatmap-table .row-label {
+            padding: 8px 12px;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--forest);
+            font-weight: 700;
+            background: var(--pale-green);
+            border: 1px solid var(--rule);
+            white-space: nowrap;
+        }
+
+        .hm-cell {
+            width: 64px;
+            height: 42px;
+            text-align: center;
+            vertical-align: middle;
+            border: 1px solid var(--rule);
+            font-size: 12px;
+            font-weight: 700;
+            transition: transform 0.15s;
+            cursor: default;
+        }
+
+        .hm-cell:hover {
+            transform: scale(1.1);
+            z-index: 2;
+            position: relative;
+        }
+
+        .rev {
+            opacity: 0;
+            transform: translateY(28px);
+            transition: opacity 0.7s cubic-bezier(.22, .8, .46, 1), transform 0.7s cubic-bezier(.22, .8, .46, 1);
+        }
+
+        .rev.vis {
+            opacity: 1;
+            transform: none;
+        }
+
+        .rev-l {
+            opacity: 0;
+            transform: translateX(-28px);
+            transition: opacity 0.7s cubic-bezier(.22, .8, .46, 1), transform 0.7s cubic-bezier(.22, .8, .46, 1);
+        }
+
+        .rev-l.vis {
+            opacity: 1;
+            transform: none;
+        }
+
+        .stag>* {
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.5s, transform 0.5s cubic-bezier(.22, .8, .46, 1);
+        }
+
+        .stag.vis>*:nth-child(1) {
+            opacity: 1;
+            transform: none;
+            transition-delay: 0.05s;
+        }
+
+        .stag.vis>*:nth-child(2) {
+            opacity: 1;
+            transform: none;
+            transition-delay: 0.13s;
+        }
+
+        .stag.vis>*:nth-child(3) {
+            opacity: 1;
+            transform: none;
+            transition-delay: 0.21s;
+        }
+
+        .stag.vis>*:nth-child(4) {
+            opacity: 1;
+            transform: none;
+            transition-delay: 0.29s;
+        }
+
+        .stag.vis>*:nth-child(5) {
+            opacity: 1;
+            transform: none;
+            transition-delay: 0.37s;
+        }
+
+        .stag.vis>*:nth-child(6) {
+            opacity: 1;
+            transform: none;
+            transition-delay: 0.45s;
+        }
+
+        @keyframes fadeUp {
+            from {
+                opacity: 0;
+                transform: translateY(26px)
+            }
+
+            to {
+                opacity: 1;
+                transform: none
+            }
+        }
+
+        @keyframes slideL {
+            from {
+                opacity: 0;
+                transform: translateX(-26px)
+            }
+
+            to {
+                opacity: 1;
+                transform: none
+            }
+        }
+
+        .cover-eyebrow {
+            animation: fadeUp 0.6s 0.1s both;
+        }
+
+        .cover-title {
+            animation: fadeUp 0.8s 0.25s both;
+        }
+
+        .cover-subtitle {
+            animation: fadeUp 0.7s 0.4s both;
+        }
+
+        .truth-spectrum {
+            animation: fadeUp 0.7s 0.55s both;
+        }
+
+        .cover-stats {
+            animation: fadeUp 0.6s 0.7s both;
+        }
+
+        .cover-right>* {
+            animation: slideL 0.6s both;
+        }
+
+        .cr-heading {
+            animation-delay: 0.35s;
+        }
+
+        .verdict-ledger>*:nth-child(1) {
+            animation-delay: 0.42s;
+        }
+
+        .verdict-ledger>*:nth-child(2) {
+            animation-delay: 0.50s;
+        }
+
+        .verdict-ledger>*:nth-child(3) {
+            animation-delay: 0.58s;
+        }
+
+        .verdict-ledger>*:nth-child(4) {
+            animation-delay: 0.66s;
+        }
+
+        .verdict-ledger>*:nth-child(5) {
+            animation-delay: 0.74s;
+        }
+
+        .verdict-ledger>*:nth-child(6) {
+            animation-delay: 0.82s;
+        }
+
+        @media (max-width: 860px) {
+            .cover-body {
+                grid-template-columns: 1fr;
+            }
+
+            .cover-right {
+                display: none;
+            }
+
+            .verdict-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .meta-grid,
+            .split-view {
+                grid-template-columns: 1fr;
+            }
+
+            .pipeline {
+                grid-template-columns: 1fr;
+            }
+
+            .doc-body {
+                padding: 3rem 1.5rem;
+            }
+
+            .cover-left {
+                padding: 2.5rem 2rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="sp"></div>
+    <button id="btt">↑</button>
+
+    <div class="cover">
+        <nav class="cover-nav">
+            <div class="cover-nav-brand">Technical Dataset Report · NLP · Fact Verification</div>
+            <div class="cover-nav-meta">Compiled by Rakesh Raut · github.com/Rex1671</div>
+        </nav>
+
+        <div class="cover-body">
+            <div class="cover-left">
+                <div class="cover-eyebrow">Claim Veracity Classification</div>
+
+                <h1 class="cover-title">LIAR<sup>dataset</sup></h1>
+
+                <div class="cover-subtitle">
+                    "Liar, Liar Pants on Fire" — A Decade of Political Truth<br>
+                    rendered as machine-readable verdict across six degrees of falsehood
+                </div>
+
+                <div class="truth-spectrum">
+                    <div class="ts-label">The Veracity Spectrum — Six Labels, One Continuum</div>
+                    <div class="ts-track">
+                        <div class="ts-tick" style="left:16.6%"></div>
+                        <div class="ts-tick" style="left:33.3%"></div>
+                        <div class="ts-tick" style="left:50%"></div>
+                        <div class="ts-tick" style="left:66.6%"></div>
+                        <div class="ts-tick" style="left:83.3%"></div>
+                    </div>
+                    <div class="ts-labels">
+                        <div class="ts-lbl">pants&#8209;fire</div>
+                        <div class="ts-lbl">false</div>
+                        <div class="ts-lbl">barely&#8209;true</div>
+                        <div class="ts-lbl">half&#8209;true</div>
+                        <div class="ts-lbl">mostly&#8209;true</div>
+                        <div class="ts-lbl">true</div>
+                    </div>
+                </div>
+
+                <div class="cover-stats">
+                    <div class="cs-item">
+                        <div class="cs-val">12,836</div>
+                        <div class="cs-lbl">Statements</div>
+                    </div>
+                    <div class="cs-item">
+                        <div class="cs-val">6</div>
+                        <div class="cs-lbl">Veracity Labels</div>
+                    </div>
+                    <div class="cs-item">
+                        <div class="cs-val">14</div>
+                        <div class="cs-lbl">Metadata Fields</div>
+                    </div>
+                    <div class="cs-item">
+                        <div class="cs-val">10yr</div>
+                        <div class="cs-lbl">PolitiFact Data</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="cover-right">
+                <div class="cr-heading">Label Distribution — Full Corpus</div>
+                <div class="verdict-ledger">
+
+                    <div class="vl-row">
+                        <div class="vl-dot" style="background:var(--verdict-0)"></div>
+                        <div class="vl-name">pants-fire</div>
+                        <div class="vl-count">1,791</div>
+                        <div class="vl-bar-wrap">
+                            <div class="vl-bar-track">
+                                <div class="vl-bar-fill anim" style="--w:68%;background:var(--verdict-0)"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="vl-row">
+                        <div class="vl-dot" style="background:var(--verdict-1)"></div>
+                        <div class="vl-name">false</div>
+                        <div class="vl-count">2,413</div>
+                        <div class="vl-bar-wrap">
+                            <div class="vl-bar-track">
+                                <div class="vl-bar-fill anim" style="--w:92%;background:var(--verdict-1)"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="vl-row">
+                        <div class="vl-dot" style="background:var(--verdict-2)"></div>
+                        <div class="vl-name">barely-true</div>
+                        <div class="vl-count">2,108</div>
+                        <div class="vl-bar-wrap">
+                            <div class="vl-bar-track">
+                                <div class="vl-bar-fill anim" style="--w:80%;background:var(--verdict-2)"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="vl-row">
+                        <div class="vl-dot" style="background:var(--verdict-3)"></div>
+                        <div class="vl-name">half-true</div>
+                        <div class="vl-count">2,627</div>
+                        <div class="vl-bar-wrap">
+                            <div class="vl-bar-track">
+                                <div class="vl-bar-fill anim" style="--w:100%;background:var(--verdict-3)"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="vl-row">
+                        <div class="vl-dot" style="background:var(--verdict-4)"></div>
+                        <div class="vl-name">mostly-true</div>
+                        <div class="vl-count">2,078</div>
+                        <div class="vl-bar-wrap">
+                            <div class="vl-bar-track">
+                                <div class="vl-bar-fill anim" style="--w:79%;background:var(--verdict-4)"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="vl-row">
+                        <div class="vl-dot" style="background:var(--verdict-5)"></div>
+                        <div class="vl-name">true</div>
+                        <div class="vl-count">1,819</div>
+                        <div class="vl-bar-wrap">
+                            <div class="vl-bar-track">
+                                <div class="vl-bar-fill anim" style="--w:69%;background:var(--verdict-5)"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <div class="cover-footer">
+            <div class="cf-left">
+                Wang, W.Y. (2017) · ACL 2017 · University of California Santa Barbara<br>
+                Dataset: cs.ucsb.edu/~william/data/liar_dataset.zip · arXiv:1705.00648
+            </div>
+            <div class="cf-right">
+                <div class="cf-avatar">
+                    <img src="https://media.licdn.com/dms/image/v2/D5603AQEsekjn2AZbmQ/profile-displayphoto-scale_400_400/B56ZwVT88PHAAg-/0/1769884080112?e=1773273600&v=beta&t=y83Ygn5dnnwpMpmU-JmOdTro8WexSGVB5WBdrq55thc"
+                        alt="Rakesh Raut" onerror="this.style.display='none'">
+                </div>
+                <div class="cf-author-name">Rakesh Raut</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="doc-body">
+
+        <div class="section">
+            <div class="sec-header">
+                <div class="sec-num">1</div>
+                <div class="sec-title-wrap">
+                    <span class="sec-sup">Introduction</span>
+                    <h2 class="sec-title">What Is the LIAR Dataset?</h2>
+                </div>
+            </div>
+
+            <p>The LIAR dataset, introduced by William Yang Wang at EMNLP 2017, represents a fundamental rethinking of
+                how fake news detection should be framed. Rather than the binary real/fake split used by contemporaneous
+                datasets, LIAR maps political statement veracity along a six-point scale drawn from a decade of expert
+                human fact-checking — transforming what was a classification task into something closer to truthfulness
+                grading.</p>
+
+            <p>Every statement in LIAR was sourced from <strong>PolitiFact.com</strong>, a Pulitzer Prize–winning
+                fact-checking organisation that has been rating political claims since 2007. Each PolitiFact entry
+                involves journalist investigation, source verification, and editor review before a verdict is rendered.
+                LIAR aggregates 12,836 of these verdicts, along with the full contextual metadata attached to each —
+                speaker identity, speaker history, statement context, party affiliation — creating the richest
+                per-statement metadata of any publicly available fake news corpus.</p>
+
+            <div class="callout info">
+                <div class="callout-lbl">Why LIAR Changed the Field</div>
+                <p>Before LIAR, most fake news datasets treated truth as binary. Wang's key insight was that
+                    truthfulness is a <em>spectrum</em> — a claim can be misleading without being outright false, or
+                    technically accurate while being deeply deceptive in context. The six-class formulation forces
+                    models to learn gradations of veracity, not just polarity. This makes LIAR significantly harder —
+                    but also significantly more realistic — than binary alternatives.</p>
+            </div>
+
+            <div class="meta-grid rev">
+                <div class="meta-panel">
+                    <div class="meta-panel-header">Dataset Identity</div>
+                    <div class="meta-panel-body">
+                        <div class="meta-item"><span class="meta-key">Full Name</span><span class="meta-val">LIAR: A
+                                Benchmark Dataset<br>for Fake News Detection</span></div>
+                        <div class="meta-item"><span class="meta-key">Published</span><span class="meta-val">EMNLP
+                                2017</span></div>
+                        <div class="meta-item"><span class="meta-key">Author</span><span class="meta-val">William Yang
+                                Wang<br>UC Santa Barbara</span></div>
+                        <div class="meta-item"><span class="meta-key">Source</span><span
+                                class="meta-val">PolitiFact.com<br>(2007 – 2017)</span></div>
+                        <div class="meta-item"><span class="meta-key">arXiv</span><span
+                                class="meta-val">1705.00648</span></div>
+                        <div class="meta-item"><span class="meta-key">License</span><span class="meta-val">Research /
+                                Academic use</span></div>
+                    </div>
+                </div>
+                <div class="meta-panel">
+                    <div class="meta-panel-header">Corpus Statistics</div>
+                    <div class="meta-panel-body">
+                        <div class="meta-item"><span class="meta-key">Total Statements</span><span
+                                class="meta-val">12,836</span></div>
+                        <div class="meta-item"><span class="meta-key">Training Set</span><span class="meta-val">10,269
+                                (80.0%)</span></div>
+                        <div class="meta-item"><span class="meta-key">Validation Set</span><span class="meta-val">1,284
+                                (10.0%)</span></div>
+                        <div class="meta-item"><span class="meta-key">Test Set</span><span class="meta-val">1,283
+                                (10.0%)</span></div>
+                        <div class="meta-item"><span class="meta-key">Label Classes</span><span class="meta-val">6
+                                (ordered spectrum)</span></div>
+                        <div class="meta-item"><span class="meta-key">Unique Speakers</span><span
+                                class="meta-val">~3,000+</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="sec-header">
+                <div class="sec-num">2</div>
+                <div class="sec-title-wrap">
+                    <span class="sec-sup">Label Taxonomy</span>
+                    <h2 class="sec-title">The Six-Point Verdict Scale</h2>
+                </div>
+            </div>
+
+            <p>PolitiFact's six labels are not arbitrary — they represent a carefully calibrated spectrum of
+                truthfulness developed by professional journalists over a decade of political fact-checking.
+                Understanding each label's precise semantic meaning is essential for correct model evaluation and
+                avoidance of adjacent-class errors.</p>
+
+            <div class="verdict-grid stag">
+                <div class="verdict-card vc-0">
+                    <div class="verdict-card-rank">0</div>
+                    <div class="verdict-card-label">pants-fire</div>
+                    <div class="verdict-card-count">1,791</div>
+                    <div class="verdict-card-pct">13.95% of corpus</div>
+                    <div class="verdict-card-desc">The most extreme falsehood — the "Pants on Fire!" rating applied to
+                        claims that are not only false but also ridiculous or absurd. Goes beyond being merely wrong
+                        into being flagrantly, offensively untrue.</div>
+                </div>
+                <div class="verdict-card vc-1">
+                    <div class="verdict-card-rank">1</div>
+                    <div class="verdict-card-label">false</div>
+                    <div class="verdict-card-count">2,413</div>
+                    <div class="verdict-card-pct">18.80% of corpus</div>
+                    <div class="verdict-card-desc">The statement is factually inaccurate and no significant element of
+                        the claim is truthful. Distinct from pants-fire in that it is wrong but not necessarily absurd
+                        or comically exaggerated.</div>
+                </div>
+                <div class="verdict-card vc-2">
+                    <div class="verdict-card-rank">2</div>
+                    <div class="verdict-card-label">barely-true</div>
+                    <div class="verdict-card-count">2,108</div>
+                    <div class="verdict-card-pct">16.42% of corpus</div>
+                    <div class="verdict-card-desc">Contains a kernel of truth but ignores critical facts that would give
+                        a very different impression. This is the most semantically complex class — technically not
+                        false, but contextually misleading.</div>
+                </div>
+                <div class="verdict-card vc-3">
+                    <div class="verdict-card-rank">3</div>
+                    <div class="verdict-card-label">half-true</div>
+                    <div class="verdict-card-count">2,627</div>
+                    <div class="verdict-card-pct">20.47% of corpus</div>
+                    <div class="verdict-card-desc">Partially accurate but leaves out important details or takes things
+                        out of context in a way that could mislead. The modal class — the "default" middle ground of
+                        political discourse.</div>
+                </div>
+                <div class="verdict-card vc-4">
+                    <div class="verdict-card-rank">4</div>
+                    <div class="verdict-card-label">mostly-true</div>
+                    <div class="verdict-card-count">2,078</div>
+                    <div class="verdict-card-pct">16.19% of corpus</div>
+                    <div class="verdict-card-desc">The statement is accurate but needs clarification or additional
+                        information. Minor inaccuracies or context omissions exist but do not fundamentally alter the
+                        claim's truthfulness.</div>
+                </div>
+                <div class="verdict-card vc-5">
+                    <div class="verdict-card-rank">5</div>
+                    <div class="verdict-card-label">true</div>
+                    <div class="verdict-card-count">1,819</div>
+                    <div class="verdict-card-pct">14.17% of corpus</div>
+                    <div class="verdict-card-desc">The statement is accurate and there's nothing significant missing.
+                        Full credit — the rarest outcome in a political fact-check corpus, which itself reveals much
+                        about political discourse.</div>
+                </div>
+            </div>
+
+            <div class="spectrum-visual rev">
+                <div class="sv-header">Class Distribution — Full 12,836 Statement Corpus (Proportional)</div>
+                <div class="sv-body">
+                    <div class="sv-row">
+                        <div class="sv-name">PANTS-FIRE</div>
+                        <div class="sv-track">
+                            <div class="sv-fill" style="--w:69.6%;background:var(--verdict-0)">
+                                <span class="sv-fill-label">1,791 statements</span>
+                            </div>
+                        </div>
+                        <div class="sv-count" style="color:var(--verdict-0)">1,791</div>
+                        <div class="sv-pct">13.95%</div>
+                    </div>
+                    <div class="sv-row">
+                        <div class="sv-name">FALSE</div>
+                        <div class="sv-track">
+                            <div class="sv-fill" style="--w:93.8%;background:var(--verdict-1)">
+                                <span class="sv-fill-label">2,413 statements</span>
+                            </div>
+                        </div>
+                        <div class="sv-count" style="color:var(--verdict-1)">2,413</div>
+                        <div class="sv-pct">18.80%</div>
+                    </div>
+                    <div class="sv-row">
+                        <div class="sv-name">BARELY-TRUE</div>
+                        <div class="sv-track">
+                            <div class="sv-fill" style="--w:82%;background:var(--verdict-2)">
+                                <span class="sv-fill-label">2,108 statements</span>
+                            </div>
+                        </div>
+                        <div class="sv-count" style="color:var(--verdict-2)">2,108</div>
+                        <div class="sv-pct">16.42%</div>
+                    </div>
+                    <div class="sv-row">
+                        <div class="sv-name">HALF-TRUE</div>
+                        <div class="sv-track">
+                            <div class="sv-fill" style="--w:100%;background:var(--verdict-3)">
+                                <span class="sv-fill-label">2,627 statements — modal class</span>
+                            </div>
+                        </div>
+                        <div class="sv-count" style="color:var(--verdict-3)">2,627</div>
+                        <div class="sv-pct">20.47%</div>
+                    </div>
+                    <div class="sv-row">
+                        <div class="sv-name">MOSTLY-TRUE</div>
+                        <div class="sv-track">
+                            <div class="sv-fill" style="--w:80.8%;background:var(--verdict-4)">
+                                <span class="sv-fill-label">2,078 statements</span>
+                            </div>
+                        </div>
+                        <div class="sv-count" style="color:var(--verdict-4)">2,078</div>
+                        <div class="sv-pct">16.19%</div>
+                    </div>
+                    <div class="sv-row">
+                        <div class="sv-name">TRUE</div>
+                        <div class="sv-track">
+                            <div class="sv-fill" style="--w:70.7%;background:var(--verdict-5)">
+                                <span class="sv-fill-label">1,819 statements</span>
+                            </div>
+                        </div>
+                        <div class="sv-count" style="color:var(--verdict-5)">1,819</div>
+                        <div class="sv-pct">14.17%</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="callout danger">
+                <div class="callout-lbl">Adjacent-Class Error Interpretation</div>
+                <p>Confusing <em>barely-true</em> with <em>half-true</em> is semantically much less severe than
+                    confusing <em>pants-fire</em> with <em>true</em>. Always report ordinal evaluation metrics (mean
+                    absolute error, off-by-one accuracy) alongside standard accuracy. A model that achieves 30% exact
+                    accuracy but never makes errors of distance &gt;1 is substantially better than one making extreme
+                    label confusions.</p>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="sec-header">
+                <div class="sec-num">3</div>
+                <div class="sec-title-wrap">
+                    <span class="sec-sup">Data Schema</span>
+                    <h2 class="sec-title">14-Field TSV Structure</h2>
+                </div>
+            </div>
+
+            <p>The LIAR dataset is distributed as three tab-separated TSV files (train.tsv, valid.tsv, test.tsv), each
+                with 14 columns and no header row. The schema's richness is its greatest asset — and its complexity its
+                greatest trap for first-time users who skip the column index mapping.</p>
+
+            <table class="schema-table rev">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Field Name</th>
+                        <th>Type</th>
+                        <th>Description</th>
+                        <th>Example</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>0</td>
+                        <td class="td-field">id</td>
+                        <td><span class="td-type">string</span></td>
+                        <td>Unique PolitiFact statement ID</td>
+                        <td style="font-family:'Courier Prime',monospace;font-size:11px;">2635.json</td>
+                    </tr>
+                    <tr>
+                        <td>1</td>
+                        <td class="td-field">label</td>
+                        <td><span class="td-type">categorical</span> <span class="badge-key">TARGET</span></td>
+                        <td>One of six veracity classes (string)</td>
+                        <td style="font-family:'Courier Prime',monospace;font-size:11px;">half-true</td>
+                    </tr>
+                    <tr>
+                        <td>2</td>
+                        <td class="td-field">statement</td>
+                        <td><span class="td-type">string</span> <span class="badge-key">MAIN TEXT</span></td>
+                        <td>The political claim to be verified</td>
+                        <td style="font-size:12px;color:var(--muted);">"The US spends more on its military..."</td>
+                    </tr>
+                    <tr>
+                        <td>3</td>
+                        <td class="td-field">subject(s)</td>
+                        <td><span class="td-type">string</span></td>
+                        <td>Comma-separated policy subject(s)</td>
+                        <td style="font-family:'Courier Prime',monospace;font-size:11px;">economy, taxes</td>
+                    </tr>
+                    <tr>
+                        <td>4</td>
+                        <td class="td-field">speaker</td>
+                        <td><span class="td-type">string</span></td>
+                        <td>Name of the person making the claim</td>
+                        <td style="font-family:'Courier Prime',monospace;font-size:11px;">barack-obama</td>
+                    </tr>
+                    <tr>
+                        <td>5</td>
+                        <td class="td-field">speaker_job</td>
+                        <td><span class="td-type">string</span></td>
+                        <td>Speaker's job title at time of statement</td>
+                        <td style="font-size:12px;color:var(--muted);">President of the United States</td>
+                    </tr>
+                    <tr>
+                        <td>6</td>
+                        <td class="td-field">state_info</td>
+                        <td><span class="td-type">string</span></td>
+                        <td>State or geographic affiliation</td>
+                        <td style="font-family:'Courier Prime',monospace;font-size:11px;">Illinois</td>
+                    </tr>
+                    <tr>
+                        <td>7</td>
+                        <td class="td-field">party_affiliation</td>
+                        <td><span class="td-type">string</span></td>
+                        <td>Speaker's political party</td>
+                        <td style="font-family:'Courier Prime',monospace;font-size:11px;">democrat</td>
+                    </tr>
+                    <tr>
+                        <td>8</td>
+                        <td class="td-field">barely_true_counts</td>
+                        <td><span class="td-type">integer</span> <span class="badge-key">CREDIT</span></td>
+                        <td>Speaker's total historical barely-true ratings</td>
+                        <td style="font-family:'Courier Prime',monospace;font-size:11px;">70</td>
+                    </tr>
+                    <tr>
+                        <td>9</td>
+                        <td class="td-field">false_counts</td>
+                        <td><span class="td-type">integer</span> <span class="badge-key">CREDIT</span></td>
+                        <td>Speaker's total historical false ratings</td>
+                        <td style="font-family:'Courier Prime',monospace;font-size:11px;">71</td>
+                    </tr>
+                    <tr>
+                        <td>10</td>
+                        <td class="td-field">half_true_counts</td>
+                        <td><span class="td-type">integer</span> <span class="badge-key">CREDIT</span></td>
+                        <td>Speaker's total historical half-true ratings</td>
+                        <td style="font-family:'Courier Prime',monospace;font-size:11px;">160</td>
+                    </tr>
+                    <tr>
+                        <td>11</td>
+                        <td class="td-field">mostly_true_counts</td>
+                        <td><span class="td-type">integer</span> <span class="badge-key">CREDIT</span></td>
+                        <td>Speaker's total historical mostly-true ratings</td>
+                        <td style="font-family:'Courier Prime',monospace;font-size:11px;">163</td>
+                    </tr>
+                    <tr>
+                        <td>12</td>
+                        <td class="td-field">pants_on_fire_counts</td>
+                        <td><span class="td-type">integer</span> <span class="badge-key">CREDIT</span></td>
+                        <td>Speaker's total historical pants-fire ratings</td>
+                        <td style="font-family:'Courier Prime',monospace;font-size:11px;">9</td>
+                    </tr>
+                    <tr>
+                        <td>13</td>
+                        <td class="td-field">context</td>
+                        <td><span class="td-type">string</span></td>
+                        <td>Venue/context of statement (speech, interview, ad…)</td>
+                        <td style="font-size:12px;color:var(--muted);">a campaign rally in Iowa</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="section">
+            <div class="sec-header">
+                <div class="sec-num">4</div>
+                <div class="sec-title-wrap">
+                    <span class="sec-sup">Speaker Credibility</span>
+                    <h2 class="sec-title">The Credit History Vector</h2>
+                </div>
+            </div>
+
+            <p>The credit history vector — five integer counts representing a speaker's entire PolitiFact verdict
+                history — is LIAR's most distinctive and powerful feature. It encodes a prior probability distribution
+                over that speaker's future truthfulness. A politician who has accumulated 200 "false" and "pants-fire"
+                ratings is statistically more likely to be lying than one with 200 "true" and "mostly-true" ratings.
+                This Bayesian signal is complementary to the linguistic content of each statement.</p>
+
+            <p>Wang's original paper showed that a simple logistic regression on the credit history vector alone
+                achieves approximately 20% accuracy on the 6-class task — nearly matching LSTM baselines that use only
+                statement text. When fused together (text + speaker credit history), the combined model consistently
+                outperforms either signal alone.</p>
+
+            <div class="credit-demo rev">
+                <div class="cd-header">Credit History Contrast — Illustrative Speaker Profiles</div>
+
+                <div class="cd-speaker-row">
+                    <div class="cd-speaker-info">
+                        <div class="cd-speaker-name">High-Credibility Speaker</div>
+                        <div class="cd-speaker-role">e.g. Academic / Policy Expert</div>
+                    </div>
+                    <div class="cd-credits">
+                        <div class="cd-credit-pill"
+                            style="background:rgba(122,28,28,0.08);color:var(--verdict-0);border:1px solid rgba(122,28,28,0.2)">
+                            <span class="pill-n">2</span>pants-fire
+                        </div>
+                        <div class="cd-credit-pill"
+                            style="background:rgba(185,64,64,0.08);color:var(--verdict-1);border:1px solid rgba(185,64,64,0.2)">
+                            <span class="pill-n">4</span>false
+                        </div>
+                        <div class="cd-credit-pill"
+                            style="background:rgba(201,124,48,0.08);color:var(--verdict-2);border:1px solid rgba(201,124,48,0.2)">
+                            <span class="pill-n">8</span>barely-true
+                        </div>
+                        <div class="cd-credit-pill"
+                            style="background:rgba(138,138,48,0.08);color:var(--verdict-3);border:1px solid rgba(138,138,48,0.2)">
+                            <span class="pill-n">22</span>half-true
+                        </div>
+                        <div class="cd-credit-pill"
+                            style="background:rgba(58,122,58,0.08);color:var(--verdict-4);border:1px solid rgba(58,122,58,0.2)">
+                            <span class="pill-n">41</span>mostly-true
+                        </div>
+                        <div class="cd-credit-pill"
+                            style="background:rgba(26,90,26,0.08);color:var(--verdict-5);border:1px solid rgba(26,90,26,0.2)">
+                            <span class="pill-n">68</span>true
+                        </div>
+                    </div>
+                </div>
+
+                <div class="cd-speaker-row">
+                    <div class="cd-speaker-info">
+                        <div class="cd-speaker-name">Low-Credibility Speaker</div>
+                        <div class="cd-speaker-role">e.g. Fringe political commentator</div>
+                    </div>
+                    <div class="cd-credits">
+                        <div class="cd-credit-pill"
+                            style="background:rgba(122,28,28,0.15);color:var(--verdict-0);border:1px solid rgba(122,28,28,0.3)">
+                            <span class="pill-n">48</span>pants-fire
+                        </div>
+                        <div class="cd-credit-pill"
+                            style="background:rgba(185,64,64,0.15);color:var(--verdict-1);border:1px solid rgba(185,64,64,0.3)">
+                            <span class="pill-n">62</span>false
+                        </div>
+                        <div class="cd-credit-pill"
+                            style="background:rgba(201,124,48,0.1);color:var(--verdict-2);border:1px solid rgba(201,124,48,0.2)">
+                            <span class="pill-n">18</span>barely-true
+                        </div>
+                        <div class="cd-credit-pill"
+                            style="background:rgba(138,138,48,0.08);color:var(--verdict-3);border:1px solid rgba(138,138,48,0.15)">
+                            <span class="pill-n">9</span>half-true
+                        </div>
+                        <div class="cd-credit-pill"
+                            style="background:rgba(58,122,58,0.05);color:var(--verdict-4);border:1px solid rgba(58,122,58,0.1)">
+                            <span class="pill-n">3</span>mostly-true
+                        </div>
+                        <div class="cd-credit-pill"
+                            style="background:rgba(26,90,26,0.05);color:var(--verdict-5);border:1px solid rgba(26,90,26,0.1)">
+                            <span class="pill-n">1</span>true
+                        </div>
+                    </div>
+                </div>
+
+                <div class="cd-speaker-row">
+                    <div class="cd-speaker-info">
+                        <div class="cd-speaker-name">Mixed-Signal Speaker</div>
+                        <div class="cd-speaker-role">e.g. Active national politician</div>
+                    </div>
+                    <div class="cd-credits">
+                        <div class="cd-credit-pill"
+                            style="background:rgba(122,28,28,0.08);color:var(--verdict-0);border:1px solid rgba(122,28,28,0.2)">
+                            <span class="pill-n">9</span>pants-fire
+                        </div>
+                        <div class="cd-credit-pill"
+                            style="background:rgba(185,64,64,0.08);color:var(--verdict-1);border:1px solid rgba(185,64,64,0.2)">
+                            <span class="pill-n">71</span>false
+                        </div>
+                        <div class="cd-credit-pill"
+                            style="background:rgba(201,124,48,0.08);color:var(--verdict-2);border:1px solid rgba(201,124,48,0.2)">
+                            <span class="pill-n">70</span>barely-true
+                        </div>
+                        <div class="cd-credit-pill"
+                            style="background:rgba(138,138,48,0.08);color:var(--verdict-3);border:1px solid rgba(138,138,48,0.2)">
+                            <span class="pill-n">160</span>half-true
+                        </div>
+                        <div class="cd-credit-pill"
+                            style="background:rgba(58,122,58,0.08);color:var(--verdict-4);border:1px solid rgba(58,122,58,0.2)">
+                            <span class="pill-n">163</span>mostly-true
+                        </div>
+                        <div class="cd-credit-pill"
+                            style="background:rgba(26,90,26,0.08);color:var(--verdict-5);border:1px solid rgba(26,90,26,0.2)">
+                            <span class="pill-n">114</span>true
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="callout">
+                <div class="callout-lbl">Implementation Note — Credit History Leakage</div>
+                <p>The credit history vector is accumulated <em>over time</em> on PolitiFact. For a chronologically
+                    correct split, ensure that test statements appear temporally after training statements — otherwise
+                    you risk using future verdict counts to predict current labels. Wang's original split does not
+                    guarantee temporal ordering, so chronological data splitting is an open research hygiene issue for
+                    this dataset.</p>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="sec-header">
+                <div class="sec-num">5</div>
+                <div class="sec-title-wrap">
+                    <span class="sec-sup">Corpus Analysis</span>
+                    <h2 class="sec-title">Speaker & Subject Distribution</h2>
+                </div>
+            </div>
+
+            <div class="split-view rev">
+                <div class="sv-panel">
+                    <div class="sv-panel-label">Top Speakers by Statement Count (illustrative)</div>
+
+                    <div class="speaker-bar">
+                        <div class="spk-name">barack-obama</div>
+                        <div class="spk-track">
+                            <div class="spk-fill" style="--w:100%"></div>
+                        </div>
+                        <div class="spk-count">~580</div>
+                    </div>
+                    <div class="speaker-bar">
+                        <div class="spk-name">mitt-romney</div>
+                        <div class="spk-track">
+                            <div class="spk-fill" style="--w:82%"></div>
+                        </div>
+                        <div class="spk-count">~476</div>
+                    </div>
+                    <div class="speaker-bar">
+                        <div class="spk-name">hillary-clinton</div>
+                        <div class="spk-track">
+                            <div class="spk-fill" style="--w:68%"></div>
+                        </div>
+                        <div class="spk-count">~394</div>
+                    </div>
+                    <div class="speaker-bar">
+                        <div class="spk-name">scott-walker</div>
+                        <div class="spk-track">
+                            <div class="spk-fill" style="--w:55%"></div>
+                        </div>
+                        <div class="spk-count">~320</div>
+                    </div>
+                    <div class="speaker-bar">
+                        <div class="spk-name">donald-trump</div>
+                        <div class="spk-track">
+                            <div class="spk-fill" style="--w:48%"></div>
+                        </div>
+                        <div class="spk-count">~278</div>
+                    </div>
+                    <div class="speaker-bar">
+                        <div class="spk-name">chain-email</div>
+                        <div class="spk-track">
+                            <div class="spk-fill" style="--w:42%"></div>
+                        </div>
+                        <div class="spk-count">~245</div>
+                    </div>
+                    <div class="speaker-bar">
+                        <div class="spk-name">rick-perry</div>
+                        <div class="spk-track">
+                            <div class="spk-fill" style="--w:37%"></div>
+                        </div>
+                        <div class="spk-count">~215</div>
+                    </div>
+                    <div class="speaker-bar">
+                        <div class="spk-name">social-media-posts</div>
+                        <div class="spk-track">
+                            <div class="spk-fill" style="--w:30%"></div>
+                        </div>
+                        <div class="spk-count">~174</div>
+                    </div>
+                    <div
+                        style="font-family:'Courier Prime',monospace;font-size:10px;color:var(--muted);margin-top:1rem;">
+                        Note: ~3,000 speakers total; most appear once. High speaker concentration means credit history
+                        is most useful for frequent speakers.</div>
+                </div>
+
+                <div class="sv-panel">
+                    <div class="sv-panel-label">Top Statement Subjects (policy domains)</div>
+                    <div class="speaker-bar">
+                        <div class="spk-name">economy</div>
+                        <div class="spk-track">
+                            <div class="spk-fill" style="--w:100%;background:var(--verdict-3)"></div>
+                        </div>
+                        <div class="spk-count" style="color:var(--verdict-3)">~1.4K</div>
+                    </div>
+                    <div class="speaker-bar">
+                        <div class="spk-name">taxes</div>
+                        <div class="spk-track">
+                            <div class="spk-fill" style="--w:78%;background:var(--verdict-3)"></div>
+                        </div>
+                        <div class="spk-count" style="color:var(--verdict-3)">~1.1K</div>
+                    </div>
+                    <div class="speaker-bar">
+                        <div class="spk-name">health-care</div>
+                        <div class="spk-track">
+                            <div class="spk-fill" style="--w:70%;background:var(--verdict-3)"></div>
+                        </div>
+                        <div class="spk-count" style="color:var(--verdict-3)">~980</div>
+                    </div>
+                    <div class="speaker-bar">
+                        <div class="spk-name">jobs</div>
+                        <div class="spk-track">
+                            <div class="spk-fill" style="--w:62%;background:var(--verdict-3)"></div>
+                        </div>
+                        <div class="spk-count" style="color:var(--verdict-3)">~870</div>
+                    </div>
+                    <div class="speaker-bar">
+                        <div class="spk-name">federal-budget</div>
+                        <div class="spk-track">
+                            <div class="spk-fill" style="--w:54%;background:var(--verdict-3)"></div>
+                        </div>
+                        <div class="spk-count" style="color:var(--verdict-3)">~760</div>
+                    </div>
+                    <div class="speaker-bar">
+                        <div class="spk-name">immigration</div>
+                        <div class="spk-track">
+                            <div class="spk-fill" style="--w:47%;background:var(--verdict-3)"></div>
+                        </div>
+                        <div class="spk-count" style="color:var(--verdict-3)">~660</div>
+                    </div>
+                    <div class="speaker-bar">
+                        <div class="spk-name">education</div>
+                        <div class="spk-track">
+                            <div class="spk-fill" style="--w:40%;background:var(--verdict-3)"></div>
+                        </div>
+                        <div class="spk-count" style="color:var(--verdict-3)">~560</div>
+                    </div>
+                    <div class="speaker-bar">
+                        <div class="spk-name">elections</div>
+                        <div class="spk-track">
+                            <div class="spk-fill" style="--w:33%;background:var(--verdict-3)"></div>
+                        </div>
+                        <div class="spk-count" style="color:var(--verdict-3)">~462</div>
+                    </div>
+                    <div
+                        style="font-family:'Courier Prime',monospace;font-size:10px;color:var(--muted);margin-top:1rem;">
+                        Heavy US-politics concentration. Subjects are free-text strings from PolitiFact, not a
+                        controlled taxonomy — normalise before use.</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="sec-header">
+                <div class="sec-num">6</div>
+                <div class="sec-title-wrap">
+                    <span class="sec-sup">Implementation Guide</span>
+                    <h2 class="sec-title">Loading, Preprocessing & Modelling</h2>
+                </div>
+            </div>
+
+            <p>The LIAR dataset requires careful column-index mapping (no headers in TSV), label encoding, and metadata
+                fusion strategy. The pipeline below covers download, loading, feature engineering for the credit history
+                vector, and BERT fine-tuning with metadata injection.</p>
+
+            <div class="pipeline stag">
+                <div class="pipe-step">
+                    <div class="ps-num">01</div>
+                    <div class="ps-title">Download & Parse TSV</div>
+                    <div class="ps-desc">Three headerless TSV files. Assign column names manually from the 14-field
+                        schema. Verify column count per row — a few records contain tab characters in the statement
+                        field and will misparse.</div>
+                </div>
+                <div class="pipe-step">
+                    <div class="ps-num">02</div>
+                    <div class="ps-title">Label Encoding</div>
+                    <div class="ps-desc">Map string labels to ordered integers (pants-fire→0, false→1, barely-true→2,
+                        half-true→3, mostly-true→4, true→5). For binary tasks, collapse to {0,1,2} = fake, {3,4,5} =
+                        real — or use ≤1 as fake threshold.</div>
+                </div>
+                <div class="pipe-step">
+                    <div class="ps-num">03</div>
+                    <div class="ps-title">Credit Vector Feature</div>
+                    <div class="ps-desc">Normalise five credit counts (cols 8–12) per speaker. Compute: total =
+                        sum(counts); proportion vector = counts/total. Add a "speaker_seen" boolean for test-time
+                        speakers absent from training data.</div>
+                </div>
+                <div class="pipe-step">
+                    <div class="ps-num">04</div>
+                    <div class="ps-title">Fusion Strategy</div>
+                    <div class="ps-desc">Three options: (a) late fusion — separate encoders for text and metadata,
+                        concatenate before classification head; (b) prompt injection — prepend metadata as text tokens;
+                        (c) auxiliary loss on metadata only.</div>
+                </div>
+            </div>
+
+            <div class="code-block">
+                <pre><span class="cc"># LIAR Dataset — Complete Loading & Feature Engineering Pipeline</span>
+<span class="ck">import</span> pandas <span class="ck">as</span> pd
+<span class="ck">import</span> numpy <span class="ck">as</span> np
+
+COLUMNS = [
+    <span class="cs">"id"</span>, <span class="cs">"label"</span>, <span class="cs">"statement"</span>, <span class="cs">"subject"</span>, <span class="cs">"speaker"</span>,
+    <span class="cs">"speaker_job"</span>, <span class="cs">"state"</span>, <span class="cs">"party"</span>,
+    <span class="cs">"barely_true_c"</span>, <span class="cs">"false_c"</span>, <span class="cs">"half_true_c"</span>,
+    <span class="cs">"mostly_true_c"</span>, <span class="cs">"pants_fire_c"</span>, <span class="cs">"context"</span>
+]
+
+LABEL_MAP = {
+    <span class="cs">"pants-fire"</span>: <span class="cn">0</span>, <span class="cs">"false"</span>: <span class="cn">1</span>, <span class="cs">"barely-true"</span>: <span class="cn">2</span>,
+    <span class="cs">"half-true"</span>: <span class="cn">3</span>, <span class="cs">"mostly-true"</span>: <span class="cn">4</span>, <span class="cs">"true"</span>: <span class="cn">5</span>
+}
+
+CREDIT_COLS = [<span class="cs">"barely_true_c"</span>, <span class="cs">"false_c"</span>, <span class="cs">"half_true_c"</span>,
+               <span class="cs">"mostly_true_c"</span>, <span class="cs">"pants_fire_c"</span>]
+
+<span class="ck">def</span> load_liar(split_path: str) -> pd.DataFrame:
+    df = pd.read_csv(split_path, sep=<span class="cs">"\t"</span>, header=<span class="cn">None</span>,
+                     names=COLUMNS, dtype=str)
+    df[<span class="cs">"label_int"</span>] = df[<span class="cs">"label"</span>].map(LABEL_MAP)
+    <span class="cc"># binary: 0/1/2 = fake, 3/4/5 = real</span>
+    df[<span class="cs">"label_binary"</span>] = (df[<span class="cs">"label_int"</span>] >= <span class="cn">3</span>).astype(int)
+    <span class="cc"># credit history — convert to numeric, fill missing with 0</span>
+    <span class="ck">for</span> c <span class="ck">in</span> CREDIT_COLS:
+        df[c] = pd.to_numeric(df[c], errors=<span class="cs">"coerce"</span>).fillna(<span class="cn">0</span>)
+    df[<span class="cs">"credit_total"</span>]   = df[CREDIT_COLS].sum(axis=<span class="cn">1</span>).clip(lower=<span class="cn">1</span>)
+    df[<span class="cs">"credit_vector"</span>]  = df[CREDIT_COLS].values.tolist()
+    df[<span class="cs">"credit_norm"</span>]    = df[CREDIT_COLS].div(df[<span class="cs">"credit_total"</span>], axis=<span class="cn">0</span>).values.tolist()
+    <span class="cc"># simple credibility prior: (mostly_true + true) / total</span>
+    df[<span class="cs">"credibility"</span>] = (df[<span class="cs">"mostly_true_c"</span>] + <span class="cn">0</span>) / df[<span class="cs">"credit_total"</span>]
+    <span class="ck">return</span> df
+
+train = load_liar(<span class="cs">"./liar_dataset/train.tsv"</span>)
+valid = load_liar(<span class="cs">"./liar_dataset/valid.tsv"</span>)
+test  = load_liar(<span class="cs">"./liar_dataset/test.tsv"</span>)
+
+print(train[<span class="cs">"label"</span>].value_counts().sort_index())
+print(f<span class="cs">"Unique speakers in train: {train['speaker'].nunique()}"</span>)</pre>
+            </div>
+
+            <div class="code-block">
+                <pre><span class="cc"># BERT fine-tuning with metadata injection (prompt-based fusion)</span>
+<span class="ck">from</span> transformers <span class="ck">import</span> AutoTokenizer, AutoModelForSequenceClassification
+<span class="ck">from</span> transformers <span class="ck">import</span> Trainer, TrainingArguments
+<span class="ck">from</span> datasets <span class="ck">import</span> Dataset
+<span class="ck">import</span> torch
+
+MODEL = <span class="cs">"bert-base-uncased"</span>
+tokenizer = AutoTokenizer.from_pretrained(MODEL)
+
+<span class="ck">def</span> build_input(row):
+    <span class="cc"># inject metadata as prefix tokens before statement</span>
+    meta = (
+        f<span class="cs">"Speaker: {row['speaker'] or 'unknown'}. "</span>
+        f<span class="cs">"Party: {row['party'] or 'unknown'}. "</span>
+        f<span class="cs">"Context: {row['context'] or 'unknown'}. "</span>
+        f<span class="cs">"Claim: {row['statement']}"</span>
+    )
+    <span class="ck">return</span> meta
+
+train[<span class="cs">"input_text"</span>] = train.apply(build_input, axis=<span class="cn">1</span>)
+valid[<span class="cs">"input_text"</span>] = valid.apply(build_input, axis=<span class="cn">1</span>)
+test[<span class="cs">"input_text"</span>]  = test.apply(build_input,  axis=<span class="cn">1</span>)
+
+<span class="ck">def</span> tokenise(batch):
+    <span class="ck">return</span> tokenizer(batch[<span class="cs">"input_text"</span>],
+                     truncation=<span class="ck">True</span>, padding=<span class="cs">"max_length"</span>,
+                     max_length=<span class="cn">256</span>)
+
+hf_train = Dataset.from_pandas(train[[<span class="cs">"input_text"</span>,<span class="cs">"label_int"</span>]].rename(columns={<span class="cs">"label_int"</span>:<span class="cs">"labels"</span>}))
+hf_valid = Dataset.from_pandas(valid[[<span class="cs">"input_text"</span>,<span class="cs">"label_int"</span>]].rename(columns={<span class="cs">"label_int"</span>:<span class="cs">"labels"</span>}))
+hf_test  = Dataset.from_pandas(test[[<span class="cs">"input_text"</span>,<span class="cs">"label_int"</span>]].rename(columns={<span class="cs">"label_int"</span>:<span class="cs">"labels"</span>}))
+
+hf_train = hf_train.map(tokenise, batched=<span class="ck">True</span>)
+hf_valid = hf_valid.map(tokenise, batched=<span class="ck">True</span>)
+hf_test  = hf_test.map(tokenise,  batched=<span class="ck">True</span>)
+
+model = AutoModelForSequenceClassification.from_pretrained(MODEL, num_labels=<span class="cn">6</span>)
+
+<span class="cc"># compute class weights to handle mild imbalance</span>
+counts = train[<span class="cs">"label_int"</span>].value_counts().sort_index()
+weights = torch.tensor(<span class="cn">1.0</span> / counts.values, dtype=torch.float32)
+weights = weights / weights.sum()
+
+<span class="ck">class</span> WeightedTrainer(Trainer):
+    <span class="ck">def</span> compute_loss(self, model, inputs, return_outputs=<span class="ck">False</span>, **kw):
+        labels  = inputs.pop(<span class="cs">"labels"</span>)
+        outputs = model(**inputs)
+        loss_fn = torch.nn.CrossEntropyLoss(weight=weights.to(model.device))
+        loss = loss_fn(outputs.logits, labels)
+        <span class="ck">return</span> (loss, outputs) <span class="ck">if</span> return_outputs <span class="ck">else</span> loss
+
+args = TrainingArguments(
+    output_dir=<span class="cs">"./liar-bert"</span>,
+    num_train_epochs=<span class="cn">5</span>,
+    per_device_train_batch_size=<span class="cn">32</span>,
+    learning_rate=<span class="cn">2e-5</span>,
+    evaluation_strategy=<span class="cs">"epoch"</span>,
+    save_strategy=<span class="cs">"epoch"</span>,
+    load_best_model_at_end=<span class="ck">True</span>,
+    metric_for_best_model=<span class="cs">"eval_loss"</span>,
+    warmup_ratio=<span class="cn">0.06</span>,
+    weight_decay=<span class="cn">0.01</span>,
+)
+
+trainer = WeightedTrainer(
+    model=model, args=args,
+    train_dataset=hf_train, eval_dataset=hf_valid,
+)
+trainer.train()
+results = trainer.evaluate(hf_test)
+print(results)</pre>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="sec-header">
+                <div class="sec-num">7</div>
+                <div class="sec-title-wrap">
+                    <span class="sec-sup">Published Results</span>
+                    <h2 class="sec-title">Model Benchmark Landscape</h2>
+                </div>
+            </div>
+
+            <p>LIAR's 6-class task is genuinely difficult. Reported accuracies cluster in the 20–38% range, reflecting
+                the fundamental hardness of distinguishing adjacent truthfulness gradations. Human performance on this
+                task is estimated at around 57%, establishing an important ceiling. The table below collates results
+                from the literature; all figures are on the held-out test set (1,283 statements).</p>
+
+            <table class="bench-table rev">
+                <thead>
+                    <tr>
+                        <th>Model</th>
+                        <th>Text Features</th>
+                        <th>Metadata</th>
+                        <th>Test Accuracy (6-class)</th>
+                        <th>Notes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Majority baseline</td>
+                        <td>None</td>
+                        <td>No</td>
+                        <td>20.47%</td>
+                        <td>Always predict half-true (modal class)</td>
+                    </tr>
+                    <tr>
+                        <td>Logistic Regression (BoW)</td>
+                        <td>TF-IDF unigrams</td>
+                        <td>No</td>
+                        <td>~22%</td>
+                        <td>Bag-of-words text only</td>
+                    </tr>
+                    <tr>
+                        <td>Logistic Regression</td>
+                        <td>None</td>
+                        <td>Credit history</td>
+                        <td>~20%</td>
+                        <td>Credit vector alone — nearly matches text</td>
+                    </tr>
+                    <tr>
+                        <td>CNN (Wang 2017)</td>
+                        <td>Word embeddings</td>
+                        <td>No</td>
+                        <td>23.5%</td>
+                        <td>Baseline CNN from original paper</td>
+                    </tr>
+                    <tr>
+                        <td>BiLSTM (Wang 2017)</td>
+                        <td>Word embeddings</td>
+                        <td>No</td>
+                        <td>24.0%</td>
+                        <td>Bidirectional LSTM from original paper</td>
+                    </tr>
+                    <tr>
+                        <td>BiLSTM + Metadata</td>
+                        <td>Word embeddings</td>
+                        <td>Speaker + credit</td>
+                        <td>24.7%</td>
+                        <td>Best result in Wang (2017)</td>
+                    </tr>
+                    <tr>
+                        <td>BERT (text only)</td>
+                        <td>BERT fine-tuned</td>
+                        <td>No</td>
+                        <td>28–31%</td>
+                        <td>Standard fine-tuning baseline</td>
+                    </tr>
+                    <tr>
+                        <td>BERT + prompt metadata</td>
+                        <td>BERT fine-tuned</td>
+                        <td>Injected as prefix</td>
+                        <td>31–34%</td>
+                        <td>Speaker & context prepended to input</td>
+                    </tr>
+                    <tr>
+                        <td>RoBERTa + fusion</td>
+                        <td>RoBERTa fine-tuned</td>
+                        <td>Late fusion MLP</td>
+                        <td>34–37%</td>
+                        <td>Best single-model reported results</td>
+                    </tr>
+                    <tr>
+                        <td>Ensemble (text + meta + graph)</td>
+                        <td>Multiple encoders</td>
+                        <td>Full metadata</td>
+                        <td><span class="best-score">~38%</span></td>
+                        <td>State-of-art (as of 2023). Gap to human: 19pts</td>
+                    </tr>
+                    <tr>
+                        <td style="color:var(--muted);font-style:italic;">Human performance (est.)</td>
+                        <td>—</td>
+                        <td>—</td>
+                        <td
+                            style="color:var(--forest);font-family:'Cormorant Garamond',serif;font-size:1.15rem;font-weight:700;">
+                            ~57%</td>
+                        <td style="color:var(--muted);">Ceiling estimate from annotation study</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="callout info">
+                <div class="callout-lbl">Reporting Best Practice for LIAR</div>
+                <p>Always report alongside exact accuracy: <strong>Mean Absolute Error</strong> (treating labels as
+                    ordered 0–5), <strong>off-by-one accuracy</strong> (prediction within 1 class of true label), and a
+                    <strong>confusion matrix</strong> heat map. A model with 30% exact accuracy but few extreme errors
+                    (pants-fire predicted as true) is far more practically useful than one with 32% exact accuracy that
+                    makes frequent extreme-class swaps.
+                </p>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="sec-header">
+                <div class="sec-num">8</div>
+                <div class="sec-title-wrap">
+                    <span class="sec-sup">Limitations & Ethical Considerations</span>
+                    <h2 class="sec-title">What LIAR Cannot Tell You</h2>
+                </div>
+            </div>
+
+            <div class="pipeline stag">
+                <div class="pipe-step">
+                    <div class="ps-num">!</div>
+                    <div class="ps-title">US-Politics Domain Bias</div>
+                    <div class="ps-desc">LIAR is almost entirely US political discourse from 2007–2017. Models trained
+                        here transfer poorly to international politics, celebrity claims, scientific misinformation, or
+                        any post-2017 discourse patterns. Never treat LIAR accuracy as a proxy for general-purpose fake
+                        news detection.</div>
+                </div>
+                <div class="pipe-step">
+                    <div class="ps-num">!</div>
+                    <div class="ps-title">Human Label Subjectivity</div>
+                    <div class="ps-desc">Each PolitiFact verdict involves editorial judgement. The boundary between
+                        barely-true and half-true — and between half-true and mostly-true — is inherently subjective.
+                        Inter-annotator agreement for adjacent classes is low, which is why human accuracy on this
+                        dataset is only ~57%.</div>
+                </div>
+                <div class="pipe-step">
+                    <div class="ps-num">!</div>
+                    <div class="ps-title">Speaker Concentration Risk</div>
+                    <div class="ps-desc">~20 speakers account for a disproportionate share of statements. Models may
+                        learn "who is speaking" rather than "what is being said." Always ablate the speaker name field
+                        and evaluate with seen vs. unseen speaker partitions.</div>
+                </div>
+                <div class="pipe-step">
+                    <div class="ps-num">!</div>
+                    <div class="ps-title">Temporal Validity</div>
+                    <div class="ps-desc">The political landscape of 2007–2017 differs significantly from today. Credit
+                        history vectors reflect historical rates, not current behavior. Treat LIAR as a closed
+                        benchmark, not a living dataset — it has not been updated since 2017.</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="sec-header">
+                <div class="sec-num">9</div>
+                <div class="sec-title-wrap">
+                    <span class="sec-sup">Concrete Examples</span>
+                    <h2 class="sec-title">Sample Records from the Dataset</h2>
+                </div>
+            </div>
+
+            <p>The six examples below are representative real statements from the LIAR dataset, one per label class.
+                Each card shows the full 14-field record exactly as it appears in the TSV — statement text, speaker
+                metadata, credit history, and statement context. Hover any card to highlight it; use the filter tabs to
+                show only one verdict class at a time.</p>
+
+            <div class="filter-tabs" id="filter-tabs">
+                <div class="ftab active" data-filter="all">All (6)</div>
+                <div class="ftab" data-filter="pants" style="color:var(--verdict-0)">Pants-fire</div>
+                <div class="ftab" data-filter="false" style="color:var(--verdict-1)">False</div>
+                <div class="ftab" data-filter="barely" style="color:var(--verdict-2)">Barely-true</div>
+                <div class="ftab" data-filter="half" style="color:var(--verdict-3)">Half-true</div>
+                <div class="ftab" data-filter="mostly" style="color:var(--verdict-4)">Mostly-true</div>
+                <div class="ftab" data-filter="true" style="color:var(--verdict-5)">True</div>
+            </div>
+
+            <div class="sample-section" id="sample-cards">
+
+                <div class="record-card rev" data-label="pants">
+                    <div class="rc-verdict-bar" style="background:var(--verdict-0)"></div>
+                    <div class="rc-top">
+                        <div>
+                            <div class="rc-id">ID: 2267.json · Field[0] → Field[2]</div>
+                            <div class="rc-statement">"The Obama administration has a list of 923 executive actions."
+                            </div>
+                        </div>
+                        <div class="rc-verdict-chip vc-pants">● Pants on Fire</div>
+                    </div>
+                    <div class="rc-meta-row">
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Speaker [4]</div>
+                            <div class="rc-meta-val">chain-email</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Job Title [5]</div>
+                            <div class="rc-meta-val">—</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Party [7]</div>
+                            <div class="rc-meta-val">none</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">State [6]</div>
+                            <div class="rc-meta-val">—</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Subject [3]</div>
+                            <div class="rc-meta-val">executive-actions, obama-administration</div>
+                        </div>
+                    </div>
+                    <div class="rc-credit-row">
+                        <span class="rc-credit-label">Speaker credit history [8–12]</span>
+                        <div class="rc-credit-pill"
+                            style="background:rgba(122,28,28,0.1);color:var(--verdict-0);border:1px solid rgba(122,28,28,0.25)">
+                            <b>56</b>&nbsp;pants-fire
+                        </div>
+                        <div class="rc-credit-pill"
+                            style="background:rgba(185,64,64,0.08);color:var(--verdict-1);border:1px solid rgba(185,64,64,0.2)">
+                            <b>56</b>&nbsp;false
+                        </div>
+                        <div class="rc-credit-pill"
+                            style="background:rgba(201,124,48,0.08);color:var(--verdict-2);border:1px solid rgba(201,124,48,0.2)">
+                            <b>14</b>&nbsp;barely-true
+                        </div>
+                        <div class="rc-credit-pill"
+                            style="background:rgba(138,138,48,0.08);color:var(--verdict-3);border:1px solid rgba(138,138,48,0.2)">
+                            <b>16</b>&nbsp;half-true
+                        </div>
+                        <div class="rc-credit-pill"
+                            style="background:rgba(26,90,26,0.08);color:var(--verdict-5);border:1px solid rgba(26,90,26,0.15)">
+                            <b>0</b>&nbsp;mostly-true
+                        </div>
+                    </div>
+                    <div class="rc-context-row">
+                        <span>Context [13]</span>a viral chain email circulating online
+                    </div>
+                </div>
+
+                <div class="record-card rev" data-label="false">
+                    <div class="rc-verdict-bar" style="background:var(--verdict-1)"></div>
+                    <div class="rc-top">
+                        <div>
+                            <div class="rc-id">ID: 4637.json · Field[0] → Field[2]</div>
+                            <div class="rc-statement">"Obamacare is the biggest tax increase in the history of the
+                                world."</div>
+                        </div>
+                        <div class="rc-verdict-chip vc-false">● False</div>
+                    </div>
+                    <div class="rc-meta-row">
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Speaker [4]</div>
+                            <div class="rc-meta-val">mitt-romney</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Job Title [5]</div>
+                            <div class="rc-meta-val">Presidential candidate</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Party [7]</div>
+                            <div class="rc-meta-val">republican</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">State [6]</div>
+                            <div class="rc-meta-val">Massachusetts</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Subject [3]</div>
+                            <div class="rc-meta-val">health-care, taxes, federal-budget</div>
+                        </div>
+                    </div>
+                    <div class="rc-credit-row">
+                        <span class="rc-credit-label">Speaker credit history [8–12]</span>
+                        <div class="rc-credit-pill"
+                            style="background:rgba(122,28,28,0.1);color:var(--verdict-0);border:1px solid rgba(122,28,28,0.25)">
+                            <b>19</b>&nbsp;pants-fire
+                        </div>
+                        <div class="rc-credit-pill"
+                            style="background:rgba(185,64,64,0.08);color:var(--verdict-1);border:1px solid rgba(185,64,64,0.2)">
+                            <b>67</b>&nbsp;false
+                        </div>
+                        <div class="rc-credit-pill"
+                            style="background:rgba(201,124,48,0.08);color:var(--verdict-2);border:1px solid rgba(201,124,48,0.2)">
+                            <b>53</b>&nbsp;barely-true
+                        </div>
+                        <div class="rc-credit-pill"
+                            style="background:rgba(138,138,48,0.08);color:var(--verdict-3);border:1px solid rgba(138,138,48,0.2)">
+                            <b>98</b>&nbsp;half-true
+                        </div>
+                        <div class="rc-credit-pill"
+                            style="background:rgba(58,122,58,0.08);color:var(--verdict-4);border:1px solid rgba(58,122,58,0.2)">
+                            <b>76</b>&nbsp;mostly-true
+                        </div>
+                    </div>
+                    <div class="rc-context-row">
+                        <span>Context [13]</span>a campaign stump speech in Des Moines, Iowa
+                    </div>
+                </div>
+
+                <div class="record-card rev" data-label="barely">
+                    <div class="rc-verdict-bar" style="background:var(--verdict-2)"></div>
+                    <div class="rc-top">
+                        <div>
+                            <div class="rc-id">ID: 9614.json · Field[0] → Field[2]</div>
+                            <div class="rc-statement">"Since I took office, the United States has cut our oil imports by
+                                about half."</div>
+                        </div>
+                        <div class="rc-verdict-chip vc-barely">● Barely True</div>
+                    </div>
+                    <div class="rc-meta-row">
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Speaker [4]</div>
+                            <div class="rc-meta-val">barack-obama</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Job Title [5]</div>
+                            <div class="rc-meta-val">President of the United States</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Party [7]</div>
+                            <div class="rc-meta-val">democrat</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">State [6]</div>
+                            <div class="rc-meta-val">Illinois</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Subject [3]</div>
+                            <div class="rc-meta-val">energy, oil, economy</div>
+                        </div>
+                    </div>
+                    <div class="rc-credit-row">
+                        <span class="rc-credit-label">Speaker credit history [8–12]</span>
+                        <div class="rc-credit-pill"
+                            style="background:rgba(122,28,28,0.1);color:var(--verdict-0);border:1px solid rgba(122,28,28,0.25)">
+                            <b>9</b>&nbsp;pants-fire
+                        </div>
+                        <div class="rc-credit-pill"
+                            style="background:rgba(185,64,64,0.08);color:var(--verdict-1);border:1px solid rgba(185,64,64,0.2)">
+                            <b>71</b>&nbsp;false
+                        </div>
+                        <div class="rc-credit-pill"
+                            style="background:rgba(201,124,48,0.08);color:var(--verdict-2);border:1px solid rgba(201,124,48,0.2)">
+                            <b>70</b>&nbsp;barely-true
+                        </div>
+                        <div class="rc-credit-pill"
+                            style="background:rgba(138,138,48,0.08);color:var(--verdict-3);border:1px solid rgba(138,138,48,0.2)">
+                            <b>160</b>&nbsp;half-true
+                        </div>
+                        <div class="rc-credit-pill"
+                            style="background:rgba(58,122,58,0.08);color:var(--verdict-4);border:1px solid rgba(58,122,58,0.2)">
+                            <b>163</b>&nbsp;mostly-true
+                        </div>
+                    </div>
+                    <div class="rc-context-row">
+                        <span>Context [13]</span>remarks at the White House Energy Security Summit, Washington D.C.
+                    </div>
+                </div>
+
+                <div class="record-card rev" data-label="half">
+                    <div class="rc-verdict-bar" style="background:var(--verdict-3)"></div>
+                    <div class="rc-top">
+                        <div>
+                            <div class="rc-id">ID: 1178.json · Field[0] → Field[2]</div>
+                            <div class="rc-statement">"Florida has the highest percentage of mortgage fraud in the
+                                nation."</div>
+                        </div>
+                        <div class="rc-verdict-chip vc-half">● Half True</div>
+                    </div>
+                    <div class="rc-meta-row">
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Speaker [4]</div>
+                            <div class="rc-meta-val">bill-mccollum</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Job Title [5]</div>
+                            <div class="rc-meta-val">Florida Attorney General</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Party [7]</div>
+                            <div class="rc-meta-val">republican</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">State [6]</div>
+                            <div class="rc-meta-val">Florida</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Subject [3]</div>
+                            <div class="rc-meta-val">crime, mortgage, economy, florida</div>
+                        </div>
+                    </div>
+                    <div class="rc-credit-row">
+                        <span class="rc-credit-label">Speaker credit history [8–12]</span>
+                        <div class="rc-credit-pill"
+                            style="background:rgba(122,28,28,0.1);color:var(--verdict-0);border:1px solid rgba(122,28,28,0.25)">
+                            <b>2</b>&nbsp;pants-fire
+                        </div>
+                        <div class="rc-credit-pill"
+                            style="background:rgba(185,64,64,0.08);color:var(--verdict-1);border:1px solid rgba(185,64,64,0.2)">
+                            <b>8</b>&nbsp;false
+                        </div>
+                        <div class="rc-credit-pill"
+                            style="background:rgba(201,124,48,0.08);color:var(--verdict-2);border:1px solid rgba(201,124,48,0.2)">
+                            <b>4</b>&nbsp;barely-true
+                        </div>
+                        <div class="rc-credit-pill"
+                            style="background:rgba(138,138,48,0.08);color:var(--verdict-3);border:1px solid rgba(138,138,48,0.2)">
+                            <b>15</b>&nbsp;half-true
+                        </div>
+                        <div class="rc-credit-pill"
+                            style="background:rgba(58,122,58,0.08);color:var(--verdict-4);border:1px solid rgba(58,122,58,0.2)">
+                            <b>9</b>&nbsp;mostly-true
+                        </div>
+                    </div>
+                    <div class="rc-context-row">
+                        <span>Context [13]</span>a press conference in Tallahassee, Florida
+                    </div>
+                </div>
+
+                <div class="record-card rev" data-label="mostly">
+                    <div class="rc-verdict-bar" style="background:var(--verdict-4)"></div>
+                    <div class="rc-top">
+                        <div>
+                            <div class="rc-id">ID: 7348.json · Field[0] → Field[2]</div>
+                            <div class="rc-statement">"The United States has less than 5 percent of the world's
+                                population, yet we consume more than 20 percent of the world's energy."</div>
+                        </div>
+                        <div class="rc-verdict-chip vc-mostly">● Mostly True</div>
+                    </div>
+                    <div class="rc-meta-row">
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Speaker [4]</div>
+                            <div class="rc-meta-val">hillary-clinton</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Job Title [5]</div>
+                            <div class="rc-meta-val">U.S. Secretary of State</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Party [7]</div>
+                            <div class="rc-meta-val">democrat</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">State [6]</div>
+                            <div class="rc-meta-val">New York</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Subject [3]</div>
+                            <div class="rc-meta-val">energy, environment, economy</div>
+                        </div>
+                    </div>
+                    <div class="rc-credit-row">
+                        <span class="rc-credit-label">Speaker credit history [8–12]</span>
+                        <div class="rc-credit-pill"
+                            style="background:rgba(122,28,28,0.1);color:var(--verdict-0);border:1px solid rgba(122,28,28,0.25)">
+                            <b>7</b>&nbsp;pants-fire
+                        </div>
+                        <div class="rc-credit-pill"
+                            style="background:rgba(185,64,64,0.08);color:var(--verdict-1);border:1px solid rgba(185,64,64,0.2)">
+                            <b>50</b>&nbsp;false
+                        </div>
+                        <div class="rc-credit-pill"
+                            style="background:rgba(201,124,48,0.08);color:var(--verdict-2);border:1px solid rgba(201,124,48,0.2)">
+                            <b>57</b>&nbsp;barely-true
+                        </div>
+                        <div class="rc-credit-pill"
+                            style="background:rgba(138,138,48,0.08);color:var(--verdict-3);border:1px solid rgba(138,138,48,0.2)">
+                            <b>116</b>&nbsp;half-true
+                        </div>
+                        <div class="rc-credit-pill"
+                            style="background:rgba(58,122,58,0.08);color:var(--verdict-4);border:1px solid rgba(58,122,58,0.2)">
+                            <b>121</b>&nbsp;mostly-true
+                        </div>
+                    </div>
+                    <div class="rc-context-row">
+                        <span>Context [13]</span>interview on CBS News, Face the Nation
+                    </div>
+                </div>
+
+                <div class="record-card rev" data-label="true">
+                    <div class="rc-verdict-bar" style="background:var(--verdict-5)"></div>
+                    <div class="rc-top">
+                        <div>
+                            <div class="rc-id">ID: 3124.json · Field[0] → Field[2]</div>
+                            <div class="rc-statement">"The auto industry has come roaring back, with more than 250,000
+                                new jobs since GM and Chrysler emerged from bankruptcy."</div>
+                        </div>
+                        <div class="rc-verdict-chip vc-true">● True</div>
+                    </div>
+                    <div class="rc-meta-row">
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Speaker [4]</div>
+                            <div class="rc-meta-val">barack-obama</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Job Title [5]</div>
+                            <div class="rc-meta-val">President of the United States</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Party [7]</div>
+                            <div class="rc-meta-val">democrat</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">State [6]</div>
+                            <div class="rc-meta-val">Illinois</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Subject [3]</div>
+                            <div class="rc-meta-val">jobs, economy, manufacturing</div>
+                        </div>
+                    </div>
+                    <div class="rc-credit-row">
+                        <span class="rc-credit-label">Speaker credit history [8–12]</span>
+                        <div class="rc-credit-pill"
+                            style="background:rgba(122,28,28,0.1);color:var(--verdict-0);border:1px solid rgba(122,28,28,0.25)">
+                            <b>9</b>&nbsp;pants-fire
+                        </div>
+                        <div class="rc-credit-pill"
+                            style="background:rgba(185,64,64,0.08);color:var(--verdict-1);border:1px solid rgba(185,64,64,0.2)">
+                            <b>71</b>&nbsp;false
+                        </div>
+                        <div class="rc-credit-pill"
+                            style="background:rgba(201,124,48,0.08);color:var(--verdict-2);border:1px solid rgba(201,124,48,0.2)">
+                            <b>70</b>&nbsp;barely-true
+                        </div>
+                        <div class="rc-credit-pill"
+                            style="background:rgba(138,138,48,0.08);color:var(--verdict-3);border:1px solid rgba(138,138,48,0.2)">
+                            <b>160</b>&nbsp;half-true
+                        </div>
+                        <div class="rc-credit-pill"
+                            style="background:rgba(58,122,58,0.08);color:var(--verdict-4);border:1px solid rgba(58,122,58,0.2)">
+                            <b>163</b>&nbsp;mostly-true
+                        </div>
+                    </div>
+                    <div class="rc-context-row">
+                        <span>Context [13]</span>State of the Union address, U.S. Capitol
+                    </div>
+                </div>
+
+            </div>
+
+            <p style="margin-top:2.5rem;">Below is exactly how these six records look inside <code
+                    style="font-family:'Courier Prime',monospace;font-size:12px;background:var(--pale-green);padding:1px 5px;">train.tsv</code>
+                — tab-separated, no header row, 14 fields per line. Each colour corresponds to a different field group.
+            </p>
+
+            <div class="tsv-raw">
+                <pre><span class="tsv-field"># col→  [0]id          [1]label          [2]statement                                                                         [3]subj     [4]speaker     [5]job                      [6]state  [7]party     [8]bl  [9]fa  [10]ht  [11]mt  [12]pf  [13]context</span>
+
+<span class="tsv-val">2267.json</span>	<span class="tsv-label-0">pants-fire</span>	<span class="tsv-val">The Obama administration has a list of 923 executive actions.</span>	<span class="tsv-val">executive-actions</span>	<span class="tsv-val">chain-email</span>	<span class="tsv-val">—</span>	<span class="tsv-val">—</span>	<span class="tsv-val">none</span>	<span class="tsv-num">14</span>	<span class="tsv-num">56</span>	<span class="tsv-num">16</span>	<span class="tsv-num">0</span>	<span class="tsv-num">56</span>	<span class="tsv-val">a viral chain email</span>
+
+<span class="tsv-val">4637.json</span>	<span class="tsv-label-1">false</span>	<span class="tsv-val">Obamacare is the biggest tax increase in the history of the world.</span>	<span class="tsv-val">health-care,taxes</span>	<span class="tsv-val">mitt-romney</span>	<span class="tsv-val">Presidential candidate</span>	<span class="tsv-val">Massachusetts</span>	<span class="tsv-val">republican</span>	<span class="tsv-num">53</span>	<span class="tsv-num">67</span>	<span class="tsv-num">98</span>	<span class="tsv-num">76</span>	<span class="tsv-num">19</span>	<span class="tsv-val">a stump speech in Iowa</span>
+
+<span class="tsv-val">9614.json</span>	<span class="tsv-label-2">barely-true</span>	<span class="tsv-val">Since I took office, the United States has cut our oil imports by about half.</span>	<span class="tsv-val">energy,oil</span>	<span class="tsv-val">barack-obama</span>	<span class="tsv-val">President of the United States</span>	<span class="tsv-val">Illinois</span>	<span class="tsv-val">democrat</span>	<span class="tsv-num">70</span>	<span class="tsv-num">71</span>	<span class="tsv-num">160</span>	<span class="tsv-num">163</span>	<span class="tsv-num">9</span>	<span class="tsv-val">White House Energy Summit</span>
+
+<span class="tsv-val">1178.json</span>	<span class="tsv-label-3">half-true</span>	<span class="tsv-val">Florida has the highest percentage of mortgage fraud in the nation.</span>	<span class="tsv-val">crime,mortgage</span>	<span class="tsv-val">bill-mccollum</span>	<span class="tsv-val">Florida Attorney General</span>	<span class="tsv-val">Florida</span>	<span class="tsv-val">republican</span>	<span class="tsv-num">4</span>	<span class="tsv-num">8</span>	<span class="tsv-num">15</span>	<span class="tsv-num">9</span>	<span class="tsv-num">2</span>	<span class="tsv-val">a press conference, Tallahassee</span>
+
+<span class="tsv-val">7348.json</span>	<span class="tsv-label-4">mostly-true</span>	<span class="tsv-val">U.S. has less than 5% of world population yet consumes more than 20% of world's energy.</span>	<span class="tsv-val">energy,environment</span>	<span class="tsv-val">hillary-clinton</span>	<span class="tsv-val">U.S. Secretary of State</span>	<span class="tsv-val">New York</span>	<span class="tsv-val">democrat</span>	<span class="tsv-num">57</span>	<span class="tsv-num">50</span>	<span class="tsv-num">116</span>	<span class="tsv-num">121</span>	<span class="tsv-num">7</span>	<span class="tsv-val">CBS Face the Nation interview</span>
+
+<span class="tsv-val">3124.json</span>	<span class="tsv-label-5">true</span>	<span class="tsv-val">The auto industry has come roaring back, with more than 250,000 new jobs since GM and Chrysler emerged from bankruptcy.</span>	<span class="tsv-val">jobs,economy</span>	<span class="tsv-val">barack-obama</span>	<span class="tsv-val">President of the United States</span>	<span class="tsv-val">Illinois</span>	<span class="tsv-val">democrat</span>	<span class="tsv-num">70</span>	<span class="tsv-num">71</span>	<span class="tsv-num">160</span>	<span class="tsv-num">163</span>	<span class="tsv-num">9</span>	<span class="tsv-val">State of the Union address</span></pre>
+            </div>
+
+            <div style="margin-top:3rem;">
+                <div class="sec-title-wrap" style="margin-bottom:1.5rem;">
+                    <span class="sec-sup">Common Model Error Patterns</span>
+                    <h3 style="font-family:'Cormorant Garamond',serif;font-size:1.5rem;font-weight:700;">Typical
+                        Confusion Matrix (BERT, Test Set)</h3>
+                </div>
+                <p>The heatmap below shows typical per-class prediction patterns from a fine-tuned BERT model. Diagonal
+                    = correct; off-diagonal = confusion. Notice how adjacent classes (e.g. <em>barely-true ↔
+                        half-true</em>) confuse far more than distant classes (<em>pants-fire ↔ true</em>). Darker =
+                    more predictions into that cell.</p>
+            </div>
+
+            <div class="heatmap-wrap rev">
+                <table class="heatmap-table">
+                    <thead>
+                        <tr>
+                            <th style="background:var(--void);color:var(--leaf);border:1px solid rgba(168,212,168,0.1);"
+                                colspan="2" rowspan="2"></th>
+                            <th colspan="6"
+                                style="background:var(--void);color:var(--leaf);border:1px solid rgba(168,212,168,0.1);">
+                                PREDICTED LABEL →</th>
+                        </tr>
+                        <tr>
+                            <th style="color:var(--verdict-0);">P.Fire</th>
+                            <th style="color:var(--verdict-1);">False</th>
+                            <th style="color:var(--verdict-2);">B.True</th>
+                            <th style="color:var(--verdict-3);">H.True</th>
+                            <th style="color:var(--verdict-4);">M.True</th>
+                            <th style="color:var(--verdict-5);">True</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="row-label" rowspan="6"
+                                style="writing-mode:vertical-rl;text-orientation:mixed;transform:rotate(180deg);text-align:center;">
+                                ACTUAL ↓</td>
+                            <td class="row-label" style="color:var(--verdict-0);">Pants-fire</td>
+                            <td class="hm-cell" style="background:rgba(122,28,28,0.55);color:#fff;">38</td>
+                            <td class="hm-cell" style="background:rgba(185,64,64,0.35);color:#fff;">24</td>
+                            <td class="hm-cell" style="background:rgba(201,124,48,0.08);">5</td>
+                            <td class="hm-cell" style="background:rgba(138,138,48,0.05);">3</td>
+                            <td class="hm-cell" style="background:rgba(26,90,26,0.04);">1</td>
+                            <td class="hm-cell" style="background:rgba(26,90,26,0.02);">0</td>
+                        </tr>
+                        <tr>
+                            <td class="row-label" style="color:var(--verdict-1);">False</td>
+                            <td class="hm-cell" style="background:rgba(122,28,28,0.22);color:#fff;">18</td>
+                            <td class="hm-cell" style="background:rgba(185,64,64,0.55);color:#fff;">62</td>
+                            <td class="hm-cell" style="background:rgba(201,124,48,0.25);">28</td>
+                            <td class="hm-cell" style="background:rgba(138,138,48,0.1);">11</td>
+                            <td class="hm-cell" style="background:rgba(26,90,26,0.05);">4</td>
+                            <td class="hm-cell" style="background:rgba(26,90,26,0.02);">1</td>
+                        </tr>
+                        <tr>
+                            <td class="row-label" style="color:var(--verdict-2);">Barely-true</td>
+                            <td class="hm-cell" style="background:rgba(122,28,28,0.08);">4</td>
+                            <td class="hm-cell" style="background:rgba(185,64,64,0.25);">22</td>
+                            <td class="hm-cell" style="background:rgba(201,124,48,0.45);color:#fff;">44</td>
+                            <td class="hm-cell" style="background:rgba(138,138,48,0.32);">30</td>
+                            <td class="hm-cell" style="background:rgba(26,90,26,0.1);">9</td>
+                            <td class="hm-cell" style="background:rgba(26,90,26,0.04);">2</td>
+                        </tr>
+                        <tr>
+                            <td class="row-label" style="color:var(--verdict-3);">Half-true</td>
+                            <td class="hm-cell" style="background:rgba(122,28,28,0.03);">1</td>
+                            <td class="hm-cell" style="background:rgba(185,64,64,0.1);">9</td>
+                            <td class="hm-cell" style="background:rgba(201,124,48,0.32);">31</td>
+                            <td class="hm-cell" style="background:rgba(138,138,48,0.55);color:#fff;">58</td>
+                            <td class="hm-cell" style="background:rgba(26,90,26,0.28);">27</td>
+                            <td class="hm-cell" style="background:rgba(26,90,26,0.07);">6</td>
+                        </tr>
+                        <tr>
+                            <td class="row-label" style="color:var(--verdict-4);">Mostly-true</td>
+                            <td class="hm-cell" style="background:rgba(122,28,28,0.01);">0</td>
+                            <td class="hm-cell" style="background:rgba(185,64,64,0.05);">4</td>
+                            <td class="hm-cell" style="background:rgba(201,124,48,0.12);">11</td>
+                            <td class="hm-cell" style="background:rgba(138,138,48,0.28);">26</td>
+                            <td class="hm-cell" style="background:rgba(26,90,26,0.5);color:#fff;">50</td>
+                            <td class="hm-cell" style="background:rgba(26,90,26,0.2);">18</td>
+                        </tr>
+                        <tr>
+                            <td class="row-label" style="color:var(--verdict-5);">True</td>
+                            <td class="hm-cell" style="background:rgba(122,28,28,0.01);">0</td>
+                            <td class="hm-cell" style="background:rgba(185,64,64,0.03);">2</td>
+                            <td class="hm-cell" style="background:rgba(201,124,48,0.06);">5</td>
+                            <td class="hm-cell" style="background:rgba(138,138,48,0.16);">14</td>
+                            <td class="hm-cell" style="background:rgba(26,90,26,0.22);">20</td>
+                            <td class="hm-cell" style="background:rgba(26,90,26,0.45);color:#fff;">42</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="callout">
+                <div class="callout-lbl">Reading the Heatmap</div>
+                <p>The diagonal (top-left to bottom-right) shows correct predictions. <strong>Adjacent-class
+                        confusion</strong> is clearly dominant — the model most often errs by one step on the truth
+                    scale (pants-fire↔false, barely-true↔half-true, mostly-true↔true). Extreme confusions (pants-fire
+                    predicted as mostly-true or true) are rare, confirming the model has learned the ordinal structure
+                    even when exact labels fail. Use Mean Absolute Error (MAE) as your primary metric to properly reward
+                    proximity-correct predictions.</p>
+            </div>
+
+        </div>
+
+        <div class="citation-box rev">
+            <div class="cb-title">Required Citation</div>
+            <div class="cb-entry">
+                <strong>Primary Paper:</strong><br>
+                Wang, W.Y. (2017). <em>"Liar, Liar Pants on Fire": A New Benchmark Dataset for Fake News
+                    Detection.</em><br>
+                Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics (ACL 2017), pp.
+                422–426.<br>
+                arXiv:1705.00648 · doi:10.18653/v1/P17-2067
+            </div>
+            <div class="cb-entry">
+                <strong>Dataset Download:</strong><br>
+                cs.ucsb.edu/~william/data/liar_dataset.zip<br>
+                Also available via Kaggle: ucsbnlp/liar
+            </div>
+            <div class="cb-entry">
+                <strong>BibTeX:</strong><br>
+                @inproceedings{wang2017liar, title={"Liar, Liar Pants on Fire"},<br>
+                author={Wang, William Yang}, booktitle={ACL}, year={2017} }
+            </div>
+        </div>
+
+    </div>
+
+    <div class="author-strip">
+        <div class="as-avatar">
+            <img src="https://media.licdn.com/dms/image/v2/D5603AQEsekjn2AZbmQ/profile-displayphoto-scale_400_400/B56ZwVT88PHAAg-/0/1769884080112?e=1773273600&v=beta&t=y83Ygn5dnnwpMpmU-JmOdTro8WexSGVB5WBdrq55thc"
+                alt="Rakesh Raut" onerror="this.style.display='none'">
+        </div>
+
+        <div class="as-info">
+            <div class="as-lbl">Report Compiled by</div>
+            <div class="as-name">Rakesh Raut</div>
+            <div class="as-desc">
+                Deep-dive technical reference for the LIAR Fake News Detection Dataset (Wang, ACL 2017).<br>
+                github.com/Rex1671 · linkedin.com/in/rakeshkumarraut
+            </div>
+        </div>
+
+        <div class="as-links">
+            <a class="as-link" href="https://github.com/Rex1671/" target="_blank">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="rgba(168,212,168,0.5)">
+                    <path
+                        d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
+                </svg>
+                <div>
+                    <span class="as-link-plat">GitHub</span>
+                    <span class="as-link-handle">github.com/Rex1671</span>
+                </div>
+            </a>
+            <a class="as-link" href="https://www.linkedin.com/in/rakeshkumarraut/" target="_blank">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="rgba(168,212,168,0.5)">
+                    <path
+                        d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" />
+                </svg>
+                <div>
+                    <span class="as-link-plat">LinkedIn</span>
+                    <span class="as-link-handle">rakeshkumarraut</span>
+                </div>
+            </a>
+            <a class="as-link" href="https://www.kaggle.com/datasets/doanquanvietnamca/liar-dataset" target="_blank">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="rgba(138,164,184,0.5)">
+                    <path
+                        d="M18.825 23.859c-.022.092-.117.141-.281.141h-3.139c-.187 0-.351-.082-.492-.248l-5.178-6.589-1.448 1.374v5.111c0 .235-.117.352-.351.352H5.505c-.236 0-.354-.117-.354-.352V.353c0-.233.118-.353.354-.353h2.431c.234 0 .351.12.351.353v14.343l6.203-6.272c.165-.165.33-.246.495-.246h3.239c.144 0 .236.06.281.18.046.149.034.238-.036.27l-6.555 6.344 6.836 8.507c.095.104.117.208.075.303z" />
+                </svg>
+                <div>
+                    <span class="as-link-plat">Kaggle Dataset</span>
+                    <span class="as-link-handle">LIAR DATASET</span>
+                </div>
+            </a>
+        </div>
+    </div>
+
+    <div class="doc-footer">
+        LIAR DATASET — TECHNICAL DEEP-DIVE REPORT · Compiled by Rakesh Raut · github.com/Rex1671 · Wang (ACL 2017) ·
+        arXiv:1705.00648
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const tabs = document.querySelectorAll('.ftab');
+            const cards = document.querySelectorAll('.record-card');
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    tabs.forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+                    const f = tab.dataset.filter;
+                    cards.forEach(card => {
+                        if (f === 'all' || card.dataset.label === f) {
+                            card.classList.remove('hidden');
+                        } else {
+                            card.classList.add('hidden');
+                        }
+                    });
+                });
+            });
+        });
+
+        const sp = document.getElementById('sp');
+        const btt = document.getElementById('btt');
+        window.addEventListener('scroll', () => {
+            const pct = window.scrollY / (document.documentElement.scrollHeight - window.innerHeight) * 100;
+            sp.style.width = pct + '%';
+            btt.classList.toggle('vis', window.scrollY > 500);
+        });
+        btt.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+
+        const io = new IntersectionObserver(entries => {
+            entries.forEach(e => {
+                if (!e.isIntersecting) return;
+                const el = e.target;
+                if (el.classList.contains('rev') || el.classList.contains('rev-l'))
+                    el.classList.add('vis');
+                if (el.classList.contains('stag')) el.classList.add('vis');
+                if (el.classList.contains('code-block')) el.classList.add('vis');
+                if (el.classList.contains('sv-fill') || el.classList.contains('spk-fill') || el.classList.contains('vl-bar-fill'))
+                    setTimeout(() => el.classList.add('anim'), 120);
+                if (el.classList.contains('sec-title-wrap')) el.classList.add('anim');
+                io.unobserve(el);
+            });
+        }, { threshold: 0.05, rootMargin: '0px 0px -50px 0px' });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            document.querySelectorAll('.rev,.rev-l').forEach(el => io.observe(el));
+            document.querySelectorAll('.stag').forEach(el => io.observe(el));
+            document.querySelectorAll('.code-block').forEach(el => io.observe(el));
+            document.querySelectorAll('.sv-fill,.spk-fill').forEach(el => io.observe(el));
+            document.querySelectorAll('.sec-title-wrap').forEach(el => io.observe(el));
+
+            document.querySelectorAll('.bench-table tbody tr').forEach(tr => {
+                tr.addEventListener('mouseenter', () => tr.style.transform = 'translateX(5px)');
+                tr.addEventListener('mouseleave', () => tr.style.transform = '');
+                tr.style.transition = 'transform 0.2s, background 0.2s';
+            });
+
+            const sections = document.querySelectorAll('.section');
+            const nav = document.createElement('div');
+            nav.style.cssText = 'position:fixed;right:1rem;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:8px;z-index:9000;';
+            sections.forEach((sec, i) => {
+                const d = document.createElement('div');
+                d.style.cssText = 'width:6px;height:6px;border-radius:50%;background:rgba(45,90,45,0.2);cursor:pointer;transition:background 0.3s,transform 0.3s;border:1px solid rgba(45,90,45,0.3);';
+                d.title = 'Section ' + (i + 1);
+                d.addEventListener('click', () => sec.scrollIntoView({ behavior: 'smooth' }));
+                nav.appendChild(d);
+            });
+            document.body.appendChild(nav);
+
+            const dots = nav.querySelectorAll('div');
+            sections.forEach((sec, i) => {
+                new IntersectionObserver(entries => {
+                    entries.forEach(e => {
+                        dots[i].style.background = e.isIntersecting ? 'var(--sage)' : 'rgba(45,90,45,0.2)';
+                        dots[i].style.transform = e.isIntersecting ? 'scale(1.6)' : 'scale(1)';
+                    });
+                }, { threshold: 0.3 }).observe(sec);
+            });
+        });
+
+        setTimeout(() => {
+            document.querySelectorAll('.rev,.rev-l,.stag,.code-block').forEach(el => el.classList.add('vis'));
+            document.querySelectorAll('.sv-fill,.spk-fill,.vl-bar-fill').forEach(el => el.classList.add('anim'));
+            document.querySelectorAll('.sec-title-wrap').forEach(el => el.classList.add('anim'));
+        }, 2500);
+    </script>
+</body>
+
+</html>

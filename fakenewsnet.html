@@ -1,0 +1,3229 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FakeNewsNet — Technical Deep-Dive Report</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Fraunces:ital,opsz,wght@0,9..144,100..900;1,9..144,100..900&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&family=Outfit:wght@300;400;500;600&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            /* ── Dark cover palette ── */
+            --void: #05060a;
+            --deep: #080c14;
+            --dark: #0e1420;
+            --card-dark: #131825;
+            --border-dark: #1e2a3a;
+            --border2-dark: #263040;
+            --text-dark: #e8edf5;
+            --text-dim-dark: #8899aa;
+            --text-dimmer-dark: #4a5568;
+
+            /* ── Light body palette ── */
+            --paper: #f8faff;
+            --off-white: #f0f4ff;
+            --card-light: #ffffff;
+            --border-light: #e2e8f0;
+            --border2-light: #cbd5e1;
+            --ink: #0f172a;
+            --ink-mid: #334155;
+            --ink-muted: #64748b;
+            --pale: #eef2ff;
+            --code-bg-light: #0d1117;
+
+            /* ── Brand (shared) ── */
+            --amber: #f59e0b;
+            --amber-dim: #d97706;
+            --amber-glow: rgba(245, 158, 11, 0.12);
+            --amber-pale: rgba(245, 158, 11, 0.06);
+
+            /* Fake — Vivid coral */
+            --fake-h: #f43f5e;
+            --fake-m: #fb7185;
+            --fake-l: #fecdd3;
+            --fake-bg-light: rgba(244, 63, 94, 0.06);
+            --fake-bg-dark: rgba(244, 63, 94, 0.1);
+            --fake-border: rgba(244, 63, 94, 0.3);
+
+            /* Real — Teal/cyan */
+            --real-h: #0d9488;
+            --real-m: #14b8a6;
+            --real-l: #99f6e4;
+            --real-bg-light: rgba(13, 148, 136, 0.06);
+            --real-bg-dark: rgba(13, 148, 136, 0.1);
+            --real-border: rgba(13, 148, 136, 0.3);
+
+            /* PolitiFact — blue */
+            --poli: #2563eb;
+            --poli-bg: rgba(37, 99, 235, 0.07);
+
+            /* GossipCop — purple */
+            --goss: #9333ea;
+            --goss-bg: rgba(147, 51, 234, 0.07);
+
+            --code-fg: #8eb5d4;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: var(--paper);
+            color: var(--ink);
+            font-size: 15px;
+            line-height: 1.75;
+        }
+
+        /* ── SCROLL PROGRESS ── */
+        #sp {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 2px;
+            background: linear-gradient(90deg, var(--fake-h), var(--amber), var(--real-h));
+            z-index: 9999;
+            width: 0%;
+            transition: width .1s;
+        }
+
+        /* ── BTT ── */
+        #btt {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            width: 42px;
+            height: 42px;
+            background: var(--ink);
+            color: var(--amber);
+            border: 1px solid var(--amber-dim);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transform: translateY(8px);
+            transition: opacity .3s, transform .3s;
+            z-index: 9990;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: .85rem;
+            border-radius: 3px;
+        }
+
+        #btt.vis {
+            opacity: 1;
+            transform: none;
+        }
+
+        #btt:hover {
+            background: var(--amber);
+            color: #fff;
+        }
+
+        /* ═══════════════════ COVER ═══════════════════ */
+        .cover {
+            min-height: 100vh;
+            background: var(--deep);
+            position: relative;
+            overflow: hidden;
+            display: grid;
+            grid-template-rows: auto 1fr auto;
+        }
+
+        /* Hexagon grid texture */
+        .cover::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image: radial-gradient(circle, rgba(245, 158, 11, 0.04) 1px, transparent 1px);
+            background-size: 28px 28px;
+            pointer-events: none;
+        }
+
+        /* Diagonal slash accent */
+        .cover-slash {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 55%;
+            height: 100%;
+            background: linear-gradient(135deg, transparent 40%, rgba(255, 77, 109, 0.025) 40%, rgba(255, 77, 109, 0.04) 60%, transparent 60%);
+            pointer-events: none;
+        }
+
+        /* Glow orbs */
+        .orb-1 {
+            position: absolute;
+            top: -15%;
+            right: -8%;
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(245, 158, 11, 0.07) 0%, transparent 65%);
+            pointer-events: none;
+            animation: pulseA 7s ease-in-out infinite;
+        }
+
+        .orb-2 {
+            position: absolute;
+            bottom: -20%;
+            left: -5%;
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, rgba(255, 77, 109, 0.06) 0%, transparent 65%);
+            pointer-events: none;
+            animation: pulseA 9s ease-in-out infinite reverse;
+        }
+
+        .orb-3 {
+            position: absolute;
+            top: 40%;
+            left: 35%;
+            width: 350px;
+            height: 350px;
+            background: radial-gradient(circle, rgba(0, 212, 170, 0.04) 0%, transparent 65%);
+            pointer-events: none;
+            animation: pulseA 11s ease-in-out infinite;
+        }
+
+        @keyframes pulseA {
+
+            0%,
+            100% {
+                opacity: 1;
+                transform: scale(1)
+            }
+
+            50% {
+                opacity: .5;
+                transform: scale(1.15)
+            }
+        }
+
+        /* Nav */
+        .cover-nav {
+            padding: 1.6rem 4rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+            position: relative;
+            z-index: 10;
+        }
+
+        .nav-brand {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            letter-spacing: .3em;
+            text-transform: uppercase;
+            color: rgba(226, 232, 240, 0.35);
+        }
+
+        .nav-link {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            letter-spacing: .1em;
+            color: var(--amber);
+            text-decoration: none;
+            border: 1px solid var(--amber-dim);
+            padding: 5px 14px;
+            transition: all .2s;
+        }
+
+        .nav-link:hover {
+            background: var(--amber-glow);
+        }
+
+        .nav-meta {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            letter-spacing: .08em;
+            color: rgba(226, 232, 240, 0.3);
+        }
+
+        /* Cover body */
+        .cover-body {
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            position: relative;
+            z-index: 5;
+        }
+
+        .cover-left {
+            padding: 4rem 4rem 3rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            border-right: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        /* Eyebrow */
+        .eyebrow {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            letter-spacing: .35em;
+            text-transform: uppercase;
+            color: var(--amber);
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            animation: fadeUp .5s .1s both;
+        }
+
+        .eyebrow::before {
+            content: '';
+            width: 28px;
+            height: 1px;
+            background: var(--amber);
+        }
+
+        /* Title */
+        .cover-title {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: clamp(4rem, 9vw, 9.5rem);
+            line-height: .88;
+            letter-spacing: .02em;
+            margin-bottom: 1rem;
+            animation: fadeUp .7s .18s both;
+        }
+
+        .ct-fake {
+            color: #fb7185;
+        }
+
+        .ct-news {
+            color: #f1f5f9;
+        }
+
+        .ct-net {
+            color: #5eead4;
+        }
+
+        .ct-sup {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: .13em;
+            font-weight: 400;
+            color: var(--amber);
+            letter-spacing: .2em;
+            vertical-align: super;
+        }
+
+        .cover-sub {
+            font-family: 'Fraunces', serif;
+            font-size: 1.1rem;
+            font-weight: 300;
+            font-style: italic;
+            color: rgba(203, 213, 225, 0.65);
+            max-width: 520px;
+            line-height: 1.6;
+            margin-bottom: 2.5rem;
+            animation: fadeUp .6s .3s both;
+        }
+
+        /* Dual-source split bar */
+        .dual-split {
+            margin: 2rem 0;
+            animation: fadeUp .6s .45s both;
+        }
+
+        .ds-label {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 9px;
+            letter-spacing: .2em;
+            text-transform: uppercase;
+            color: rgba(226, 232, 240, 0.45);
+            margin-bottom: 1rem;
+        }
+
+        /* Source tabs */
+        .source-tabs {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1px;
+            background: rgba(255, 255, 255, 0.06);
+            margin-bottom: 1rem;
+        }
+
+        .stab {
+            background: rgba(15, 23, 42, 0.7);
+            padding: 1.4rem 1.6rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stab::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+        }
+
+        .stab-poli::before {
+            background: var(--poli);
+        }
+
+        .stab-goss::before {
+            background: var(--goss);
+        }
+
+        .stab-source {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 9px;
+            letter-spacing: .25em;
+            text-transform: uppercase;
+            margin-bottom: .5rem;
+        }
+
+        .stab-poli .stab-source {
+            color: #93c5fd;
+        }
+
+        .stab-goss .stab-source {
+            color: #c4b5fd;
+        }
+
+        .stab-name {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 1.6rem;
+            color: #f1f5f9;
+            margin-bottom: .5rem;
+        }
+
+        .stab-bar {
+            height: 28px;
+            display: grid;
+            grid-template-columns: var(--fake-w) var(--real-w);
+            border-radius: 2px;
+            overflow: hidden;
+            margin-bottom: .5rem;
+        }
+
+        .stab-fake-seg {
+            background: linear-gradient(90deg, #be123c, var(--fake-h));
+            display: flex;
+            align-items: center;
+            padding: 0 8px;
+        }
+
+        .stab-real-seg {
+            background: linear-gradient(90deg, var(--real-m), var(--real-h));
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding: 0 8px;
+        }
+
+        .seg-lbl {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 9px;
+            font-weight: 700;
+            color: #fff;
+            text-transform: uppercase;
+            letter-spacing: .08em;
+        }
+
+        .stab-counts {
+            display: flex;
+            justify-content: space-between;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            color: rgba(226, 232, 240, 0.5);
+        }
+
+        .stab-counts span {
+            font-weight: 700;
+        }
+
+        .tc-fake {
+            color: #fda4af;
+        }
+
+        .tc-real {
+            color: #5eead4;
+        }
+
+        /* Stats row */
+        .cover-stats {
+            display: flex;
+            gap: 0;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            animation: fadeUp .5s .6s both;
+        }
+
+        .cs-item {
+            flex: 1;
+            padding: 1.1rem 1.4rem;
+            border-right: 1px solid rgba(255, 255, 255, 0.07);
+        }
+
+        .cs-item:last-child {
+            border-right: none;
+        }
+
+        .cs-val {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 2.2rem;
+            color: #f1f5f9;
+            line-height: 1;
+            margin-bottom: 3px;
+        }
+
+        .cs-lbl {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 8px;
+            letter-spacing: .18em;
+            text-transform: uppercase;
+            color: rgba(226, 232, 240, 0.35);
+        }
+
+        /* Cover right panel */
+        .cover-right {
+            padding: 2.5rem 2rem;
+            background: rgba(5, 6, 10, 0.55);
+            backdrop-filter: blur(10px);
+            border-left: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .cr-heading {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 9px;
+            letter-spacing: .25em;
+            text-transform: uppercase;
+            color: rgba(226, 232, 240, 0.35);
+            margin-bottom: 1.2rem;
+            padding-bottom: .7rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+            animation: slideL .5s .3s both;
+        }
+
+        /* Dimension cards */
+        .dim-cards {
+            display: flex;
+            flex-direction: column;
+            gap: 1px;
+            background: rgba(255, 255, 255, 0.04);
+        }
+
+        .dim-card {
+            background: rgba(15, 23, 42, 0.6);
+            padding: 1rem 1.2rem;
+            display: flex;
+            align-items: flex-start;
+            gap: .8rem;
+            animation: slideL .5s both;
+            transition: background .2s;
+        }
+
+        .dim-card:hover {
+            background: rgba(30, 41, 59, 0.8);
+        }
+
+        .dim-icon {
+            font-size: 1.2rem;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+
+        .dim-name {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            color: var(--amber);
+            letter-spacing: .05em;
+            margin-bottom: 3px;
+            text-transform: uppercase;
+        }
+
+        .dim-desc {
+            font-size: 12px;
+            color: rgba(203, 213, 225, 0.65);
+            line-height: 1.5;
+        }
+
+        /* Cover footer */
+        .cover-footer {
+            padding: 1.4rem 4rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: relative;
+            z-index: 5;
+        }
+
+        .cf-left {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            color: rgba(226, 232, 240, 0.3);
+            line-height: 1.8;
+        }
+
+        .cf-left a {
+            color: rgba(245, 158, 11, .55);
+            text-decoration: none;
+            border-bottom: 1px solid rgba(245, 158, 11, .2);
+        }
+
+        .cf-left a:hover {
+            color: var(--amber);
+        }
+
+        .cf-right {
+            display: flex;
+            align-items: center;
+            gap: .8rem;
+        }
+
+        .cf-avatar {
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+        }
+
+        .cf-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .cf-author {
+            font-family: 'Fraunces', serif;
+            font-size: 13px;
+            font-weight: 600;
+            color: rgba(226, 232, 240, 0.55);
+        }
+
+        /* ═══════════════════ DOC BODY (LIGHT) ═══════════════════ */
+        .doc-body {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 5rem 3rem;
+        }
+
+        p {
+            margin-bottom: 1.1rem;
+            color: var(--ink-mid);
+        }
+
+        code {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            background: var(--off-white);
+            padding: 1px 6px;
+            border: 1px solid var(--border-light);
+            border-radius: 2px;
+            color: var(--amber-dim);
+        }
+
+        .section {
+            margin-bottom: 6rem;
+        }
+
+        /* Section header */
+        .sec-header {
+            display: grid;
+            grid-template-columns: 64px 1fr;
+            gap: 1.5rem;
+            align-items: baseline;
+            margin-bottom: 2.8rem;
+        }
+
+        .sec-num {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 4.5rem;
+            color: rgba(245, 158, 11, 0.13);
+            line-height: 1;
+        }
+
+        .sec-title-wrap {
+            border-bottom: 1.5px solid var(--ink);
+            padding-bottom: .8rem;
+            position: relative;
+        }
+
+        .sec-title-wrap::after {
+            content: '';
+            position: absolute;
+            bottom: -1.5px;
+            left: 0;
+            height: 1.5px;
+            width: 0%;
+            background: var(--amber);
+            transition: width 1.1s cubic-bezier(.22, .8, .46, 1);
+        }
+
+        .sec-title-wrap.anim::after {
+            width: 30%;
+        }
+
+        .sec-sup {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 9px;
+            letter-spacing: .25em;
+            text-transform: uppercase;
+            color: var(--amber-dim);
+            display: block;
+            margin-bottom: .3rem;
+        }
+
+        .sec-title {
+            font-family: 'Fraunces', serif;
+            font-size: 2.2rem;
+            font-weight: 700;
+            color: var(--ink);
+            letter-spacing: -.01em;
+            line-height: 1.1;
+        }
+
+        /* Callouts */
+        .callout {
+            padding: 1.3rem 1.8rem;
+            margin: 2rem 0;
+            border-left: 2px solid var(--amber);
+            background: var(--amber-pale);
+        }
+
+        .callout.danger {
+            border-left-color: var(--fake-h);
+            background: var(--fake-bg-light);
+        }
+
+        .callout.success {
+            border-left-color: var(--real-h);
+            background: var(--real-bg-light);
+        }
+
+        .callout.info {
+            border-left-color: var(--poli);
+            background: var(--poli-bg);
+        }
+
+        .callout-lbl {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 9px;
+            letter-spacing: .2em;
+            text-transform: uppercase;
+            color: var(--ink-muted);
+            margin-bottom: .5rem;
+        }
+
+        .callout p {
+            margin-bottom: 0;
+            font-size: 13.5px;
+            color: var(--ink-mid);
+        }
+
+        /* Schema table */
+        .schema-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 2.5rem 0;
+            font-size: 13.5px;
+        }
+
+        .schema-table th {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 9px;
+            letter-spacing: .15em;
+            text-transform: uppercase;
+            padding: 10px 14px;
+            text-align: left;
+            background: var(--ink);
+            color: rgba(191, 219, 254, 0.7);
+            border-right: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .schema-table th:last-child {
+            border-right: none;
+        }
+
+        .schema-table td {
+            padding: 11px 14px;
+            border-bottom: 1px solid var(--border-light);
+            vertical-align: top;
+            color: var(--ink-mid);
+        }
+
+        .schema-table tbody tr:hover td {
+            background: var(--off-white);
+        }
+
+        .td-field {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            color: var(--amber-dim);
+            font-weight: 700;
+        }
+
+        .td-type {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            color: var(--poli);
+            background: var(--poli-bg);
+            padding: 1px 6px;
+            border-radius: 2px;
+        }
+
+        .badge-key {
+            display: inline-block;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 9px;
+            padding: 1px 7px;
+            background: var(--off-white);
+            color: var(--ink-muted);
+            border: 1px solid var(--border2-light);
+            border-radius: 2px;
+        }
+
+        /* Meta grid */
+        .meta-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1px;
+            background: var(--border-light);
+            margin: 2.5rem 0;
+            border: 1px solid var(--border-light);
+        }
+
+        .meta-panel {
+            background: var(--card-light);
+            overflow: hidden;
+        }
+
+        .meta-panel-header {
+            background: var(--ink);
+            color: rgba(191, 219, 254, 0.65);
+            padding: .7rem 1.2rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 9px;
+            letter-spacing: .2em;
+            text-transform: uppercase;
+        }
+
+        .meta-panel-body {
+            padding: 1.2rem;
+        }
+
+        .meta-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 1rem;
+            padding: .55rem 0;
+            border-bottom: 1px solid var(--border-light);
+            font-size: 13px;
+        }
+
+        .meta-item:last-child {
+            border-bottom: none;
+        }
+
+        .meta-key {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            color: var(--ink-muted);
+            flex-shrink: 0;
+        }
+
+        .meta-val {
+            font-size: 13px;
+            color: var(--ink);
+            text-align: right;
+            line-height: 1.5;
+        }
+
+        /* Subset comparison grid */
+        .subset-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1px;
+            background: var(--border-light);
+            margin: 2.5rem 0;
+        }
+
+        .subset-panel {
+            background: var(--card-light);
+            overflow: hidden;
+        }
+
+        .subset-header {
+            padding: 1.2rem 1.5rem;
+            border-bottom: 1px solid var(--border-light);
+            display: flex;
+            align-items: center;
+            gap: .8rem;
+        }
+
+        .subset-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+
+        .subset-title {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            letter-spacing: .12em;
+            text-transform: uppercase;
+            flex: 1;
+        }
+
+        .subset-total {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 1.8rem;
+            line-height: 1;
+        }
+
+        .subset-body {
+            padding: 1.2rem 1.5rem;
+        }
+
+        /* Count bars */
+        .count-row {
+            display: grid;
+            grid-template-columns: 60px 1fr 55px;
+            gap: .7rem;
+            align-items: center;
+            margin-bottom: .7rem;
+        }
+
+        .count-lbl {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: .08em;
+        }
+
+        .count-track {
+            height: 8px;
+            border-radius: 2px;
+            overflow: hidden;
+            background: var(--off-white);
+        }
+
+        .count-fill {
+            height: 100%;
+            border-radius: 2px;
+            width: 0;
+            transition: width 1.3s cubic-bezier(.22, .8, .46, 1);
+        }
+
+        .count-fill.anim {
+            width: var(--w) !important;
+        }
+
+        .count-n {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            font-weight: 700;
+            text-align: right;
+        }
+
+        /* Multi-modal grid */
+        .modal-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1px;
+            background: var(--border-light);
+            margin: 2.5rem 0;
+            border: 1px solid var(--border-light);
+        }
+
+        .modal-card {
+            background: var(--card-light);
+            padding: 1.5rem;
+            text-align: center;
+            transition: background .2s;
+        }
+
+        .modal-card:hover {
+            background: var(--off-white);
+        }
+
+        .modal-icon {
+            font-size: 1.8rem;
+            margin-bottom: .6rem;
+        }
+
+        .modal-name {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            letter-spacing: .12em;
+            text-transform: uppercase;
+            color: var(--amber-dim);
+            margin-bottom: .4rem;
+        }
+
+        .modal-desc {
+            font-size: 12px;
+            color: var(--ink-muted);
+            line-height: 1.5;
+        }
+
+        /* Pipeline */
+        .pipeline {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1px;
+            background: var(--ink);
+            margin: 2.5rem 0;
+            border: 1.5px solid var(--ink);
+        }
+
+        .pipe-step {
+            background: var(--card-light);
+            padding: 2rem;
+            position: relative;
+            transition: background .2s;
+        }
+
+        .pipe-step:hover {
+            background: var(--off-white);
+        }
+
+        .ps-num {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 5rem;
+            color: rgba(245, 158, 11, 0.08);
+            position: absolute;
+            top: .3rem;
+            right: 1rem;
+            line-height: 1;
+        }
+
+        .ps-title {
+            font-family: 'Fraunces', serif;
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin-bottom: .4rem;
+            color: var(--ink);
+            position: relative;
+        }
+
+        .ps-desc {
+            font-size: 13px;
+            color: var(--ink-muted);
+            line-height: 1.6;
+            position: relative;
+        }
+
+        /* Code blocks — stay dark always */
+        .code-block {
+            background: var(--code-bg-light);
+            padding: 1.6rem 2rem;
+            margin: 2rem 0;
+            overflow-x: auto;
+            border: 1px solid #1e2a3a;
+            border-left: 2px solid var(--amber);
+            opacity: 0;
+            transform: translateY(12px);
+            transition: opacity .5s, transform .5s;
+        }
+
+        .code-block.vis {
+            opacity: 1;
+            transform: none;
+        }
+
+        .code-block pre {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            color: var(--code-fg);
+            line-height: 2;
+            white-space: pre;
+        }
+
+        .cc {
+            color: #3d5c7a;
+        }
+
+        .cs {
+            color: #6baed6;
+        }
+
+        .ck {
+            color: var(--amber);
+        }
+
+        .cn {
+            color: #88b4c4;
+        }
+
+        .cr {
+            color: #fb7185;
+        }
+
+        .cf {
+            color: #2dd4bf;
+        }
+
+        /* Sample cards */
+        .filter-tabs {
+            display: flex;
+            gap: 0;
+            border: 1px solid var(--border2-light);
+            margin-bottom: 1.5rem;
+            overflow: hidden;
+        }
+
+        .ftab {
+            flex: 1;
+            padding: .65rem;
+            text-align: center;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 9px;
+            letter-spacing: .1em;
+            text-transform: uppercase;
+            cursor: pointer;
+            border-right: 1px solid var(--border-light);
+            transition: background .2s, color .2s;
+            background: var(--card-light);
+            color: var(--ink-muted);
+            user-select: none;
+        }
+
+        .ftab:last-child {
+            border-right: none;
+        }
+
+        .ftab.active {
+            background: var(--ink);
+            color: var(--amber);
+        }
+
+        .ftab:hover:not(.active) {
+            background: var(--off-white);
+            color: var(--ink);
+        }
+
+        .record-card {
+            border: 1.5px solid var(--ink);
+            margin-bottom: 1.5rem;
+            overflow: hidden;
+            transition: box-shadow .2s;
+        }
+
+        .record-card:hover {
+            box-shadow: 4px 4px 0 var(--ink);
+        }
+
+        .record-card.hidden {
+            display: none;
+        }
+
+        .rc-verdict-bar {
+            height: 3px;
+        }
+
+        .rc-top {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 1rem;
+            padding: 1.2rem 1.5rem .8rem;
+            border-bottom: 1px solid var(--border-light);
+            background: var(--pale);
+        }
+
+        .rc-id {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 9px;
+            letter-spacing: .12em;
+            color: var(--ink-muted);
+            margin-bottom: .3rem;
+        }
+
+        .rc-statement {
+            font-family: 'Fraunces', serif;
+            font-size: 1rem;
+            font-style: italic;
+            font-weight: 600;
+            line-height: 1.45;
+            color: var(--ink);
+            max-width: 740px;
+        }
+
+        .rc-verdict-chip {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: .08em;
+            text-transform: uppercase;
+            padding: 5px 14px;
+            border-radius: 2px;
+            white-space: nowrap;
+            align-self: flex-start;
+            flex-shrink: 0;
+        }
+
+        .vc-fake {
+            background: var(--fake-bg-light);
+            color: var(--fake-h);
+            border: 1px solid var(--fake-border);
+        }
+
+        .vc-real {
+            background: var(--real-bg-light);
+            color: var(--real-h);
+            border: 1px solid var(--real-border);
+        }
+
+        .vc-poli {
+            background: var(--poli-bg);
+            color: var(--poli);
+            border: 1px solid rgba(37, 99, 235, .25);
+        }
+
+        .vc-goss {
+            background: var(--goss-bg);
+            color: var(--goss);
+            border: 1px solid rgba(147, 51, 234, .25);
+        }
+
+        .rc-meta-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0;
+            border-bottom: 1px solid var(--border-light);
+        }
+
+        .rc-meta-cell {
+            padding: .7rem 1.2rem;
+            border-right: 1px solid var(--border-light);
+            min-width: 110px;
+        }
+
+        .rc-meta-cell:last-child {
+            border-right: none;
+        }
+
+        .rc-meta-key {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 8px;
+            letter-spacing: .15em;
+            text-transform: uppercase;
+            color: var(--ink-muted);
+            margin-bottom: 3px;
+        }
+
+        .rc-meta-val {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            color: var(--ink);
+            font-weight: 700;
+            line-height: 1.3;
+        }
+
+        .rc-context-row {
+            padding: .8rem 1.5rem;
+            font-size: 12.5px;
+            color: var(--ink-muted);
+            font-style: italic;
+            border-top: 1px solid var(--border-light);
+        }
+
+        .rc-context-row span {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 9px;
+            font-style: normal;
+            letter-spacing: .12em;
+            text-transform: uppercase;
+            margin-right: .5rem;
+            color: var(--ink-muted);
+        }
+
+        /* Benchmark table */
+        .bench-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 2.5rem 0;
+            font-size: 13.5px;
+        }
+
+        .bench-table th {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 9px;
+            letter-spacing: .15em;
+            text-transform: uppercase;
+            padding: 10px 14px;
+            text-align: left;
+            background: var(--void);
+            color: rgba(96, 165, 250, 0.55);
+            border-right: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .bench-table th:last-child {
+            border-right: none;
+        }
+
+        .bench-table td {
+            padding: 12px 14px;
+            border-bottom: 1px solid var(--border-light);
+            vertical-align: middle;
+            color: var(--ink-mid);
+        }
+
+        .bench-table tbody tr:hover td {
+            background: var(--off-white);
+        }
+
+        .bench-table tbody tr {
+            transition: background .2s;
+        }
+
+        .best-score {
+            font-family: 'Fraunces', serif;
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--real-h);
+        }
+
+        /* Comparison split */
+        .split-view {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1px;
+            background: var(--border-light);
+            margin: 2.5rem 0;
+            border: 1px solid var(--border-light);
+        }
+
+        .sv-panel {
+            background: var(--card-light);
+            padding: 2rem;
+        }
+
+        .sv-label {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 9px;
+            letter-spacing: .2em;
+            text-transform: uppercase;
+            margin-bottom: 1rem;
+            padding-bottom: .6rem;
+            border-bottom: 1px solid var(--border-light);
+        }
+
+        .sv-row {
+            display: flex;
+            align-items: flex-start;
+            gap: .8rem;
+            margin-bottom: .7rem;
+            font-size: 13px;
+        }
+
+        .sv-key {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            color: var(--ink-muted);
+            min-width: 110px;
+            flex-shrink: 0;
+            padding-top: 2px;
+        }
+
+        .sv-val {
+            color: var(--ink-mid);
+            line-height: 1.5;
+        }
+
+        .sv-val strong {
+            color: var(--ink);
+        }
+
+        /* Limitation steps */
+        .limit-step {
+            border-left: 2px solid var(--border2-light);
+            padding: 1.4rem 2rem;
+            margin-bottom: 1.3rem;
+            transition: border-color .2s;
+        }
+
+        .limit-step:hover {
+            border-left-color: var(--amber);
+        }
+
+        .ls-icon {
+            font-size: 1.3rem;
+            margin-bottom: .4rem;
+        }
+
+        .ls-title {
+            font-family: 'Fraunces', serif;
+            font-size: 1.05rem;
+            font-weight: 700;
+            margin-bottom: .3rem;
+            color: var(--ink);
+        }
+
+        .ls-desc {
+            font-size: 13px;
+            color: var(--ink-muted);
+            line-height: 1.65;
+        }
+
+        /* Citation — stays dark for contrast */
+        .citation-box {
+            background: var(--void);
+            border: 1px solid #1e2a3a;
+            padding: 2.5rem 3rem;
+            margin: 3rem 0;
+        }
+
+        .cb-title {
+            font-family: 'Fraunces', serif;
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #e8edf5;
+            margin-bottom: 1.2rem;
+            padding-bottom: .8rem;
+            border-bottom: 1px solid rgba(96, 165, 250, 0.1);
+        }
+
+        .cb-entry {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11.5px;
+            color: rgba(96, 165, 250, 0.4);
+            line-height: 2;
+            margin-bottom: 1rem;
+        }
+
+        .cb-entry strong {
+            color: rgba(96, 165, 250, 0.7);
+            font-weight: 700;
+        }
+
+        .cb-entry em {
+            color: var(--amber);
+            font-style: italic;
+        }
+
+        .cb-entry a {
+            color: var(--amber);
+            text-decoration: underline;
+        }
+
+        .cb-entry a:hover {
+            color: #fbbf24;
+        }
+
+        /* Author strip — dark for bookend symmetry with cover */
+        .author-strip {
+            background: var(--dark);
+            border-top: 1px solid #1e2a3a;
+            padding: 4rem;
+            display: flex;
+            align-items: center;
+            gap: 3rem;
+            flex-wrap: wrap;
+        }
+
+        .as-avatar {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            overflow: hidden;
+            border: 1px solid #263040;
+            flex-shrink: 0;
+        }
+
+        .as-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 50%;
+        }
+
+        .as-info {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .as-lbl {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 9px;
+            letter-spacing: .25em;
+            text-transform: uppercase;
+            color: #4a5568;
+            margin-bottom: .3rem;
+        }
+
+        .as-name {
+            font-family: 'Fraunces', serif;
+            font-size: 2rem;
+            font-weight: 700;
+            color: #e8edf5;
+            line-height: 1.1;
+            margin-bottom: .3rem;
+        }
+
+        .as-desc {
+            font-size: 13px;
+            color: #4a5568;
+            line-height: 1.7;
+        }
+
+        .as-links {
+            display: flex;
+            flex-direction: column;
+            gap: .6rem;
+        }
+
+        .as-link {
+            display: flex;
+            align-items: center;
+            gap: .8rem;
+            text-decoration: none;
+            padding: .6rem 1.2rem;
+            border: 1px solid #263040;
+            min-width: 220px;
+            transition: all .2s;
+            background: transparent;
+        }
+
+        .as-link:hover {
+            border-color: var(--amber-dim);
+            background: var(--amber-glow);
+        }
+
+        .as-link-plat {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 9px;
+            letter-spacing: .12em;
+            text-transform: uppercase;
+            color: #4a5568;
+            display: block;
+        }
+
+        .as-link-handle {
+            font-family: 'Fraunces', serif;
+            font-size: 14px;
+            font-weight: 600;
+            color: #e8edf5;
+        }
+
+        .doc-footer {
+            background: var(--void);
+            color: #4a5568;
+            padding: 1.5rem 3rem;
+            text-align: center;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            letter-spacing: .1em;
+            border-top: 1px solid #1e2a3a;
+        }
+
+        /* ANIMATIONS */
+        .rev {
+            opacity: 0;
+            transform: translateY(22px);
+            transition: opacity .7s cubic-bezier(.22, .8, .46, 1), transform .7s cubic-bezier(.22, .8, .46, 1);
+        }
+
+        .rev.vis {
+            opacity: 1;
+            transform: none;
+        }
+
+        .stag>* {
+            opacity: 0;
+            transform: translateY(18px);
+            transition: opacity .5s, transform .5s cubic-bezier(.22, .8, .46, 1);
+        }
+
+        .stag.vis>*:nth-child(1) {
+            opacity: 1;
+            transform: none;
+            transition-delay: .05s
+        }
+
+        .stag.vis>*:nth-child(2) {
+            opacity: 1;
+            transform: none;
+            transition-delay: .13s
+        }
+
+        .stag.vis>*:nth-child(3) {
+            opacity: 1;
+            transform: none;
+            transition-delay: .21s
+        }
+
+        .stag.vis>*:nth-child(4) {
+            opacity: 1;
+            transform: none;
+            transition-delay: .29s
+        }
+
+        @keyframes fadeUp {
+            from {
+                opacity: 0;
+                transform: translateY(24px)
+            }
+
+            to {
+                opacity: 1;
+                transform: none
+            }
+        }
+
+        @keyframes slideL {
+            from {
+                opacity: 0;
+                transform: translateX(-22px)
+            }
+
+            to {
+                opacity: 1;
+                transform: none
+            }
+        }
+
+        /* TSV */
+        .tsv-raw {
+            background: var(--code-bg);
+            padding: 1.4rem 2rem;
+            margin: 2rem 0;
+            overflow-x: auto;
+            border: 1px solid var(--border);
+            border-left: 2px solid var(--amber);
+        }
+
+        .tsv-raw pre {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            color: var(--code-fg);
+            line-height: 2;
+            white-space: pre;
+        }
+
+        .tsv-field {
+            color: var(--amber);
+        }
+
+        .tsv-fake {
+            color: var(--fake-m);
+            font-weight: 700;
+        }
+
+        .tsv-real {
+            color: var(--real-h);
+            font-weight: 700;
+        }
+
+        .tsv-num {
+            color: #88b4c4;
+        }
+
+        .tsv-url {
+            color: var(--poli);
+        }
+
+        @media (max-width:860px) {
+
+            .cover-body,
+            .subset-grid,
+            .meta-grid,
+            .split-view {
+                grid-template-columns: 1fr;
+            }
+
+            .cover-right {
+                display: none;
+            }
+
+            .pipeline {
+                grid-template-columns: 1fr;
+            }
+
+            .modal-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .doc-body {
+                padding: 3rem 1.5rem;
+            }
+
+            .cover-left {
+                padding: 2.5rem 2rem;
+            }
+
+            .cover-nav {
+                padding: 1.2rem 2rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="sp"></div>
+    <button id="btt">↑</button>
+
+    <!-- ═══════════════════════════ COVER ═══════════════════════════ -->
+    <div class="cover">
+        <div class="cover-slash"></div>
+        <div class="orb-1"></div>
+        <div class="orb-2"></div>
+        <div class="orb-3"></div>
+
+        <nav class="cover-nav">
+            <div class="nav-brand">Technical Dataset Report · NLP · Social Context · Multi-Modal</div>
+            <div style="display:flex;gap:1rem;align-items:center;">
+                <a href="https://www.kaggle.com/datasets/mdepak/fakenewsnet" target="_blank" class="nav-link">↗ Kaggle
+                    Dataset</a>
+                <div class="nav-meta">Compiled by Rakesh Raut · github.com/Rex1671</div>
+            </div>
+        </nav>
+
+        <div class="cover-body">
+            <div class="cover-left">
+                <div class="eyebrow">Multi-Modal Fake News Research — PolitiFact + GossipCop</div>
+
+                <h1 class="cover-title">
+                    <span class="ct-fake">Fake</span><br>
+                    <span class="ct-news">News</span><br>
+                    <span class="ct-net">Net</span><sup class="ct-sup">dataset</sup>
+                </h1>
+
+                <div class="cover-sub">
+                    23,921 news items across two domains — political journalism &amp; celebrity gossip — enriched with
+                    Twitter social graphs, spatiotemporal traces, and verified fact-checker labels
+                </div>
+
+                <div class="dual-split">
+                    <div class="ds-label">Dual-Source Corpus — PolitiFact &amp; GossipCop Subsets</div>
+                    <div class="source-tabs">
+                        <!-- PolitiFact -->
+                        <div class="stab stab-poli">
+                            <div class="stab-source">PolitiFact — Political</div>
+                            <div class="stab-name">783 Articles</div>
+                            <div class="stab-bar" style="--fake-w:42.9fr;--real-w:57.1fr;">
+                                <div class="stab-fake-seg"><span class="seg-lbl">Fake</span></div>
+                                <div class="stab-real-seg"><span class="seg-lbl">Real</span></div>
+                            </div>
+                            <div class="stab-counts">
+                                <span><span class="tc-fake">336</span> fake (42.9%)</span>
+                                <span><span class="tc-real">447</span> real (57.1%)</span>
+                            </div>
+                        </div>
+                        <!-- GossipCop -->
+                        <div class="stab stab-goss">
+                            <div class="stab-source">GossipCop — Entertainment</div>
+                            <div class="stab-name">18,417 Articles</div>
+                            <div class="stab-bar" style="--fake-w:8.9fr;--real-w:91.1fr;">
+                                <div class="stab-fake-seg"><span class="seg-lbl">F</span></div>
+                                <div class="stab-real-seg"><span class="seg-lbl">Real</span></div>
+                            </div>
+                            <div class="stab-counts">
+                                <span><span class="tc-fake">1,650</span> fake (9%)</span>
+                                <span><span class="tc-real">16,767</span> real (91%)</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="cover-stats">
+                    <div class="cs-item">
+                        <div class="cs-val">23,921</div>
+                        <div class="cs-lbl">Total Items</div>
+                    </div>
+                    <div class="cs-item">
+                        <div class="cs-val">2</div>
+                        <div class="cs-lbl">Domains</div>
+                    </div>
+                    <div class="cs-item">
+                        <div class="cs-val">4+</div>
+                        <div class="cs-lbl">Modalities</div>
+                    </div>
+                    <div class="cs-item">
+                        <div class="cs-val">2014–18</div>
+                        <div class="cs-lbl">Coverage</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="cover-right">
+                <div class="cr-heading">What Makes FakeNewsNet Unique</div>
+                <div class="dim-cards">
+                    <div class="dim-card" style="animation-delay:.35s">
+                        <div class="dim-icon">📰</div>
+                        <div>
+                            <div class="dim-name">News Content</div>
+                            <div class="dim-desc">Full article title, body, URL, publisher, timestamp — structured text
+                                for NLP models</div>
+                        </div>
+                    </div>
+                    <div class="dim-card" style="animation-delay:.45s">
+                        <div class="dim-icon">🐦</div>
+                        <div>
+                            <div class="dim-name">Social Context</div>
+                            <div class="dim-desc">Tweet propagation, likes, retweets, replies, user profiles, bot
+                                scores, follower graphs</div>
+                        </div>
+                    </div>
+                    <div class="dim-card" style="animation-delay:.55s">
+                        <div class="dim-icon">🗺️</div>
+                        <div>
+                            <div class="dim-name">Spatiotemporal</div>
+                            <div class="dim-desc">Time-stamped tweet locations enabling full diffusion chain analysis
+                                and cascade modelling</div>
+                        </div>
+                    </div>
+                    <div class="dim-card" style="animation-delay:.65s">
+                        <div class="dim-icon">🖼️</div>
+                        <div>
+                            <div class="dim-name">Visual Features</div>
+                            <div class="dim-desc">Images associated with news articles — enabling multi-modal
+                                classification experiments</div>
+                        </div>
+                    </div>
+                    <div class="dim-card" style="animation-delay:.75s">
+                        <div class="dim-icon">🤖</div>
+                        <div>
+                            <div class="dim-name">Bot Detection</div>
+                            <div class="dim-desc">~22% of users spreading fake news flagged as bots vs. ~9% for real
+                                news (threshold 0.5)</div>
+                        </div>
+                    </div>
+                    <div class="dim-card" style="animation-delay:.85s">
+                        <div class="dim-icon">✅</div>
+                        <div>
+                            <div class="dim-name">Expert Labels</div>
+                            <div class="dim-desc">PolitiFact journalists + GossipCop credibility scores — no
+                                crowdsourcing, no self-labels</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="cover-footer">
+            <div class="cf-left">
+                Shu, K., Mahudeswaran, D., Wang, S., Lee, D., Liu, H. (2018) · Arizona State University<br>
+                Kaggle: <a href="https://www.kaggle.com/datasets/mdepak/fakenewsnet"
+                    target="_blank">kaggle.com/datasets/mdepak/fakenewsnet</a> · arXiv:1809.01286
+            </div>
+            <div class="cf-right">
+                <div class="cf-avatar">
+                    <img src="https://media.licdn.com/dms/image/v2/D5603AQEsekjn2AZbmQ/profile-displayphoto-scale_400_400/B56ZwVT88PHAAg-/0/1769884080112?e=1773273600&v=beta&t=y83Ygn5dnnwpMpmU-JmOdTro8WexSGVB5WBdrq55thc"
+                        alt="Rakesh Raut" onerror="this.style.display='none'">
+                </div>
+                <div class="cf-author">Rakesh Raut</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════ DOC BODY ═══════════════════════════ -->
+    <div class="doc-body">
+
+        <!-- SECTION 1 -->
+        <div class="section">
+            <div class="sec-header">
+                <div class="sec-num">1</div>
+                <div class="sec-title-wrap">
+                    <span class="sec-sup">Introduction</span>
+                    <h2 class="sec-title">What Is FakeNewsNet?</h2>
+                </div>
+            </div>
+
+            <a href="https://www.kaggle.com/datasets/mdepak/fakenewsnet" target="_blank"
+                style="display:inline-flex;align-items:center;gap:.7rem;background:var(--ink);color:var(--amber);padding:.7rem 1.4rem;text-decoration:none;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;border:1px solid var(--amber-dim);transition:background .2s;margin-bottom:1.5rem;"
+                onmouseover="this.style.background='#1e293b'" onmouseout="this.style.background='var(--ink)'">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
+                    <path
+                        d="M18.825 23.859c-.022.092-.117.141-.281.141h-3.139c-.187 0-.351-.082-.492-.248l-5.178-6.589-1.448 1.374v5.111c0 .235-.117.352-.351.352H5.505c-.236 0-.354-.117-.354-.352V.353c0-.233.118-.353.354-.353h2.431c.234 0 .351.12.351.353v14.343l6.203-6.272c.165-.165.33-.246.495-.246h3.239c.144 0 .236.06.285.18.046.149.034.255-.036.315l-6.555 6.344 6.836 8.507c.095.104.117.208.07.335" />
+                </svg>
+                ↗ View on Kaggle — mdepak/fakenewsnet
+            </a>
+
+            <p>FakeNewsNet — developed at Arizona State University by Kai Shu, Deepak Mahudeswaran, Suhang Wang, Dongwon
+                Lee, and Huan Liu — is fundamentally different from its contemporaries. While most fake news datasets
+                stop at article text and a binary label, FakeNewsNet layers in <strong style="color:var(--ink);">news
+                    content, social context, visual features, and spatiotemporal information</strong> into a single
+                unified repository. This multi-modal architecture is what sets it apart as a serious research platform
+                rather than a simple classification benchmark.</p>
+
+            <p>The dataset aggregates ground-truth labels from two prestigious fact-checking organizations: <strong
+                    style="color:var(--poli);">PolitiFact</strong>, where journalist experts evaluate political claims,
+                and <strong style="color:var(--goss);">GossipCop</strong>, which applies numerical credibility scores to
+                entertainment news. These two sources cover radically different domains — political journalism and
+                celebrity gossip — providing a rare cross-domain evaluation framework in a single dataset.</p>
+
+            <div class="callout success">
+                <div class="callout-lbl">Why FakeNewsNet Goes Further Than ISOT/FND</div>
+                <p>Unlike ISOT's Fake &amp; Real News Dataset, FakeNewsNet does not rely on source-level labels (Reuters
+                    = real, flagged site = fake). Instead, each article carries an individually expert-verified label.
+                    The addition of Twitter propagation graphs, user bot scores, and geographic diffusion data enables a
+                    new class of research: not just <em>is this fake?</em> but <em>how does it spread, who spreads it,
+                        and where?</em></p>
+            </div>
+
+            <div class="meta-grid rev">
+                <div class="meta-panel">
+                    <div class="meta-panel-header">Dataset Identity</div>
+                    <div class="meta-panel-body">
+                        <div class="meta-item"><span class="meta-key">Full Name</span><span class="meta-val">FakeNewsNet
+                                — Multi-Modal<br>Fake News Repository</span></div>
+                        <div class="meta-item"><span class="meta-key">Kaggle Publisher</span><span
+                                class="meta-val">mdepak (Mahudeswaran)<br>ASU contributor</span></div>
+                        <div class="meta-item"><span class="meta-key">Core Authors</span><span class="meta-val">Shu K.,
+                                Mahudeswaran D.,<br>Wang S., Lee D., Liu H.</span></div>
+                        <div class="meta-item"><span class="meta-key">Institution</span><span class="meta-val">Arizona
+                                State University</span></div>
+                        <div class="meta-item"><span class="meta-key">Published</span><span class="meta-val">arXiv 2018
+                                · Big Data Journal 2020</span></div>
+                        <div class="meta-item"><span class="meta-key">License</span><span class="meta-val">MIT (code) ·
+                                Twitter Policy (data)<br>Non-commercial research</span></div>
+                    </div>
+                </div>
+                <div class="meta-panel">
+                    <div class="meta-panel-header">Corpus Statistics</div>
+                    <div class="meta-panel-body">
+                        <div class="meta-item"><span class="meta-key">Total News Items</span><span
+                                class="meta-val">23,921 distinct articles</span></div>
+                        <div class="meta-item"><span class="meta-key">PolitiFact Total</span><span class="meta-val">783
+                                (336 fake / 447 real)</span></div>
+                        <div class="meta-item"><span class="meta-key">GossipCop Total</span><span
+                                class="meta-val">18,417 (1,650 fake / 16,767 real)</span></div>
+                        <div class="meta-item"><span class="meta-key">Label Classes</span><span class="meta-val">2 per
+                                subset (binary)</span></div>
+                        <div class="meta-item"><span class="meta-key">Coverage Period</span><span class="meta-val">~2014
+                                – 2018</span></div>
+                        <div class="meta-item"><span class="meta-key">Political Source</span><span
+                                class="meta-val">PolitiFact.com (expert fact-check)</span></div>
+                        <div class="meta-item"><span class="meta-key">Entertainment Source</span><span
+                                class="meta-val">GossipCop.com (credibility score ≥5 = real)</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SECTION 2 — Data Modalities -->
+        <div class="section">
+            <div class="sec-header">
+                <div class="sec-num">2</div>
+                <div class="sec-title-wrap">
+                    <span class="sec-sup">Data Architecture</span>
+                    <h2 class="sec-title">Four Dimensions of Information</h2>
+                </div>
+            </div>
+
+            <p>FakeNewsNet's defining characteristic is its multi-modal, multi-dimensional architecture. Each news item
+                is not a row in a CSV — it is a richly annotated node in a social graph with textual content, engagement
+                histories, visual assets, and timestamped location traces. The repository is structured as a combination
+                of CSV files (for the minimalistic Kaggle version) and JSON directories (for the full hydrated version).
+            </p>
+
+            <div class="modal-grid rev">
+                <div class="modal-card">
+                    <div class="modal-icon">📰</div>
+                    <div class="modal-name">Textual Content</div>
+                    <div class="modal-desc">Article title, full body text, news URL, publisher domain, publication
+                        timestamp. Primary input for NLP and transformer-based classifiers.</div>
+                </div>
+                <div class="modal-card">
+                    <div class="modal-icon">🌐</div>
+                    <div class="modal-name">Social Context</div>
+                    <div class="modal-desc">Full tweet propagation tree: original posts, retweets, replies, likes. User
+                        profile attributes: bio, follower count, account age, verification status.</div>
+                </div>
+                <div class="modal-card">
+                    <div class="modal-icon">🤖</div>
+                    <div class="modal-name">Bot Detection</div>
+                    <div class="modal-desc">Botometer scores for each user who shared the article. Fake news shows ~22%
+                        bot share vs. ~9% for real news — a powerful auxiliary feature.</div>
+                </div>
+                <div class="modal-card">
+                    <div class="modal-icon">📍</div>
+                    <div class="modal-name">Spatiotemporal</div>
+                    <div class="modal-desc">Time-stamped tweet locations enabling diffusion chain reconstruction,
+                        cascade modelling, and geographic spread analysis.</div>
+                </div>
+                <div class="modal-card">
+                    <div class="modal-icon">🖼️</div>
+                    <div class="modal-name">Visual Features</div>
+                    <div class="modal-desc">Images embedded in or linked from news articles — enabling image-text fusion
+                        models and visual misinformation research.</div>
+                </div>
+                <div class="modal-card">
+                    <div class="modal-icon">🔗</div>
+                    <div class="modal-name">Network Graph</div>
+                    <div class="modal-desc">Follower/followee networks for users who shared each article — enabling
+                        GNN-based propagation and community detection experiments.</div>
+                </div>
+            </div>
+
+            <div class="callout">
+                <div class="callout-lbl">Kaggle Version vs. Full Repository</div>
+                <p>The Kaggle listing (mdepak/fakenewsnet) provides the <strong style="color:var(--ink);">minimalistic
+                        CSV version</strong>: four CSV files with news IDs, titles, and labels. The full multi-modal
+                    dataset — including tweet trees, user JSON files, images, and propagation graphs — must be
+                    downloaded via the <a href="https://github.com/KaiDMML/FakeNewsNet" target="_blank"
+                        style="color:var(--amber);">KaiDMML/FakeNewsNet GitHub repository</a> using hydration scripts
+                    and your own Twitter API credentials (required by Twitter's data distribution policy).</p>
+            </div>
+        </div>
+
+        <!-- SECTION 3 — Schema -->
+        <div class="section">
+            <div class="sec-header">
+                <div class="sec-num">3</div>
+                <div class="sec-title-wrap">
+                    <span class="sec-sup">Data Schema</span>
+                    <h2 class="sec-title">CSV Structure &amp; Full Field Reference</h2>
+                </div>
+            </div>
+
+            <p>The Kaggle minimalistic version distributes four CSV files: <code>politifact_fake.csv</code>,
+                <code>politifact_real.csv</code>, <code>gossipcop_fake.csv</code>, <code>gossipcop_real.csv</code>. Each
+                file has the same schema — the label is implied by the filename. The full hydrated dataset adds JSON
+                directories per article containing tweet trees, user profiles, and image metadata.
+            </p>
+
+            <table class="schema-table rev">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Field</th>
+                        <th>Type</th>
+                        <th>Description</th>
+                        <th>Example</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td style="color:var(--ink-muted)">0</td>
+                        <td class="td-field">id</td>
+                        <td><span class="td-type">string</span> <span class="badge-key">KEY</span></td>
+                        <td style="color:var(--text-dim)">Unique news item identifier. Used as the folder name in the
+                            full repo's directory tree for hydrated data.</td>
+                        <td style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--ink-muted);">
+                            politifact14984</td>
+                    </tr>
+                    <tr>
+                        <td style="color:var(--ink-muted)">1</td>
+                        <td class="td-field">news_url</td>
+                        <td><span class="td-type">string</span> <span class="badge-key">URL</span></td>
+                        <td style="color:var(--ink-mid);">Original article URL. Used by hydration scripts to fetch full
+                            content from the publisher's website. May be dead-linked for older articles.</td>
+                        <td style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--ink-muted);">
+                            politifact.com/truth-o-meter/…</td>
+                    </tr>
+                    <tr>
+                        <td style="color:var(--ink-muted)">2</td>
+                        <td class="td-field">title</td>
+                        <td><span class="td-type">string</span> <span class="badge-key">TEXT</span></td>
+                        <td style="color:var(--ink-mid);">Headline of the news article. Primary text input for
+                            lightweight classifiers. May differ from the fact-checker's framing title.</td>
+                        <td style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--ink-muted);">"Trump
+                            says X…"</td>
+                    </tr>
+                    <tr>
+                        <td style="color:var(--ink-muted)">3</td>
+                        <td class="td-field">tweet_ids</td>
+                        <td><span class="td-type">list[str]</span> <span class="badge-key">SOCIAL</span></td>
+                        <td style="color:var(--ink-mid);">List of Tweet IDs sharing this article. Requires Twitter API
+                            hydration to retrieve full tweet objects. Central to propagation graph construction.</td>
+                        <td style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--ink-muted);">
+                            ["90834…", "91023…"]</td>
+                    </tr>
+                    <tr>
+                        <td style="color:var(--ink-muted)">—</td>
+                        <td class="td-field">label</td>
+                        <td><span class="td-type">string</span> <span class="badge-key">TARGET — FILE-IMPLICIT</span>
+                        </td>
+                        <td style="color:var(--ink-mid);">Binary class: "fake" or "real". Derived from which CSV file
+                            the row was loaded from. Must be added programmatically when merging.</td>
+                        <td style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--ink-muted);">"fake"
+                            or "real"</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <p style="margin-top:1rem;">The full hydrated version adds extensive JSON-structured data per article ID
+                directory:</p>
+
+            <div class="tsv-raw">
+                <pre><span class="cc"># Full hydrated repository directory structure (per article)</span>
+FakeNewsNet/
+  dataset/
+    politifact_fake.csv      <span class="cc">← CSV: id, news_url, title, tweet_ids</span>
+    politifact_real.csv
+    gossipcop_fake.csv
+    gossipcop_real.csv
+
+  politifact/
+    fake/
+      <span class="tsv-url">politifact14984/</span>
+        news content.json    <span class="cc">← {title, text, images, publish_date, authors}</span>
+        tweets/
+          <span class="tsv-num">90834712938.json</span>   <span class="cc">← Full tweet object (hydrated from Twitter API)</span>
+          <span class="tsv-num">91023847203.json</span>
+        retweets/
+          <span class="tsv-num">90834712938/</span>        <span class="cc">← Retweet objects for each tweet</span>
+        user_timeline_tweets/
+          <span class="tsv-num">user_id.json</span>         <span class="cc">← User's timeline for profiling</span>
+        users/
+          <span class="tsv-num">user_id.json</span>         <span class="cc">← {id, screen_name, followers, friends, bot_score…}</span>
+    real/
+      <span class="tsv-url">politifact12345/</span>
+        ...
+  gossipcop/
+    fake/ real/             <span class="cc">← same structure as politifact</span></pre>
+            </div>
+
+            <div class="callout danger">
+                <div class="callout-lbl">Critical — Tweet Hydration Required for Full Dataset</div>
+                <p>The Kaggle CSV files contain only <strong style="color:var(--ink);">tweet IDs</strong>, not the tweet
+                    content. To use social context features, you must run the FakeNewsNet hydration scripts against the
+                    <strong style="color:var(--ink);">Twitter API v2</strong> with your own API credentials. Twitter's
+                    Academic Research access tier is required for historical tweet lookup. Tweet objects for articles
+                    from 2014–2018 may be partially unavailable due to tweet deletion and account suspension. Plan for
+                    up to 20–30% data loss during hydration.
+                </p>
+            </div>
+        </div>
+
+        <!-- SECTION 4 — Distribution -->
+        <div class="section">
+            <div class="sec-header">
+                <div class="sec-num">4</div>
+                <div class="sec-title-wrap">
+                    <span class="sec-sup">Distribution Analysis</span>
+                    <h2 class="sec-title">Class Imbalance Across Both Subsets</h2>
+                </div>
+            </div>
+
+            <p>FakeNewsNet's two subsets exhibit radically different class distributions — a critical design
+                consideration that affects every modelling decision. PolitiFact is nearly balanced (43% fake / 57%
+                real), making it suitable for standard training regimes. GossipCop is heavily skewed (9% fake / 91%
+                real), demanding class-weighting, oversampling (SMOTE, data augmentation), or threshold calibration
+                before any meaningful classifier can be trained.</p>
+
+            <div class="subset-grid rev">
+                <!-- PolitiFact -->
+                <div class="subset-panel">
+                    <div class="subset-header">
+                        <div class="subset-dot" style="background:var(--poli)"></div>
+                        <div class="subset-title" style="color:var(--poli)">PolitiFact — Political News</div>
+                        <div class="subset-total" style="color:var(--poli)">783</div>
+                    </div>
+                    <div class="subset-body">
+                        <div class="count-row">
+                            <div class="count-lbl" style="color:var(--fake-h)">Fake</div>
+                            <div class="count-track" style="background:rgba(255,77,109,0.12)">
+                                <div class="count-fill anim" style="--w:75%;background:var(--fake-h)"></div>
+                            </div>
+                            <div class="count-n" style="color:var(--fake-h)">336</div>
+                        </div>
+                        <div class="count-row">
+                            <div class="count-lbl" style="color:var(--real-h)">Real</div>
+                            <div class="count-track" style="background:rgba(0,212,170,0.1)">
+                                <div class="count-fill anim" style="--w:100%;background:var(--real-h)"></div>
+                            </div>
+                            <div class="count-n" style="color:var(--real-h)">447</div>
+                        </div>
+                        <div
+                            style="margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border-light);font-size:12px;color:var(--ink-muted);">
+                            <p style="margin:0;font-size:12px;color:var(--ink-muted);">Class balance: <strong
+                                    style="color:var(--ink);">42.9% fake / 57.1% real.</strong> Near-balanced — standard
+                                loss functions apply. PolitiFact's small size (783 articles) means train/test splits
+                                must be stratified carefully. Researchers typically supplement with cross-dataset
+                                validation.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- GossipCop -->
+                <div class="subset-panel">
+                    <div class="subset-header">
+                        <div class="subset-dot" style="background:var(--goss)"></div>
+                        <div class="subset-title" style="color:var(--goss)">GossipCop — Entertainment News</div>
+                        <div class="subset-total" style="color:var(--goss)">18,417</div>
+                    </div>
+                    <div class="subset-body">
+                        <div class="count-row">
+                            <div class="count-lbl" style="color:var(--fake-h)">Fake</div>
+                            <div class="count-track" style="background:rgba(255,77,109,0.12)">
+                                <div class="count-fill anim" style="--w:9.8%;background:var(--fake-h)"></div>
+                            </div>
+                            <div class="count-n" style="color:var(--fake-h)">1,650</div>
+                        </div>
+                        <div class="count-row">
+                            <div class="count-lbl" style="color:var(--real-h)">Real</div>
+                            <div class="count-track" style="background:rgba(0,212,170,0.1)">
+                                <div class="count-fill anim" style="--w:100%;background:var(--real-h)"></div>
+                            </div>
+                            <div class="count-n" style="color:var(--real-h)">16,767</div>
+                        </div>
+                        <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border-light);">
+                            <p style="margin:0;font-size:12px;color:var(--ink-muted);">Class balance: <strong
+                                    style="color:var(--ink);">8.96% fake / 91.04% real.</strong> Severely imbalanced — a
+                                majority-class baseline achieves 91% accuracy. Always report F1 (macro or fake-class),
+                                precision, recall. Use weighted cross-entropy or focal loss.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="callout danger">
+                <div class="callout-lbl">GossipCop's 91% Accuracy Trap</div>
+                <p>On GossipCop, a model that always predicts "real" achieves 91% accuracy. This is not a model — it's
+                    the prior distribution. <strong style="color:var(--ink);">Never report only accuracy on this
+                        subset.</strong> Macro-F1, fake-class recall, and AUC are mandatory metrics. The class imbalance
+                    reflects real-world fake news prevalence, making GossipCop more ecologically valid than artificially
+                    balanced datasets, but harder to benchmark.</p>
+            </div>
+        </div>
+
+        <!-- SECTION 5 — Implementation -->
+        <div class="section">
+            <div class="sec-header">
+                <div class="sec-num">5</div>
+                <div class="sec-title-wrap">
+                    <span class="sec-sup">Implementation Guide</span>
+                    <h2 class="sec-title">Loading, Merging &amp; Modelling</h2>
+                </div>
+            </div>
+
+            <p>FakeNewsNet's implementation varies significantly depending on which modalities you intend to use. The
+                CSV-only path (Kaggle minimalistic version) is straightforward — load, label, split, vectorize. The full
+                multi-modal path requires Twitter API hydration, JSON parsing, graph construction, and optional image
+                feature extraction. Below covers both tracks.</p>
+
+            <div class="pipeline stag">
+                <div class="pipe-step">
+                    <div class="ps-num">01</div>
+                    <div class="ps-title">Load &amp; Label CSVs</div>
+                    <div class="ps-desc">Load all four CSVs. Add <code>label</code> (0/1) and <code>source</code>
+                        (politifact/gossipcop) columns. Keep subsets separate for evaluation — do not merge PolitiFact
+                        and GossipCop into a single training pool without domain flags.</div>
+                </div>
+                <div class="pipe-step">
+                    <div class="ps-num">02</div>
+                    <div class="ps-title">Handle Class Imbalance</div>
+                    <div class="ps-desc">For GossipCop (9% fake): apply class-weighted loss (weight ≈ 10× for fake
+                        class), or use SMOTE on text embeddings, or oversample fake rows. For PolitiFact (43%/57%):
+                        standard stratified split is sufficient without resampling.</div>
+                </div>
+                <div class="pipe-step">
+                    <div class="ps-num">03</div>
+                    <div class="ps-title">Twitter Hydration (Full)</div>
+                    <div class="ps-desc">Clone KaiDMML/FakeNewsNet, configure Twitter API credentials in
+                        <code>tweet_keys_file.json</code>, run collection scripts. Plan for 24–72h download time and
+                        20–30% data loss from deleted tweets. Store hydrated JSON locally — do not redistribute.
+                    </div>
+                </div>
+                <div class="pipe-step">
+                    <div class="ps-num">04</div>
+                    <div class="ps-title">Feature Extraction</div>
+                    <div class="ps-desc">Text: TF-IDF, BERT embeddings, or RoBERTa. Social: aggregate tweet stats
+                        (retweet speed, bot ratio, reply sentiment). Graph: GNN on follower network. Fusion: concatenate
+                        modality embeddings before classification head.</div>
+                </div>
+            </div>
+
+            <div class="code-block">
+                <pre><span class="cc"># FakeNewsNet — CSV Loading, Labelling & Multi-Subset Preparation</span>
+<span class="ck">import</span> pandas <span class="ck">as</span> pd
+<span class="ck">import</span> numpy <span class="ck">as</span> np
+<span class="ck">from</span> sklearn.model_selection <span class="ck">import</span> train_test_split
+
+<span class="cc"># ── 1. Load all four CSVs ──────────────────────────────────────────────</span>
+poli_fake = pd.read_csv(<span class="cs">"politifact_fake.csv"</span>)
+poli_real = pd.read_csv(<span class="cs">"politifact_real.csv"</span>)
+goss_fake = pd.read_csv(<span class="cs">"gossipcop_fake.csv"</span>)
+goss_real = pd.read_csv(<span class="cs">"gossipcop_real.csv"</span>)
+
+<span class="cc"># ── 2. Assign labels and source tags ──────────────────────────────────</span>
+<span class="ck">def</span> tag(df, label, source):
+    df = df.copy()
+    df[<span class="cs">"label"</span>]  = label   <span class="cc"># 1 = fake, 0 = real</span>
+    df[<span class="cs">"source"</span>] = source
+    <span class="ck">return</span> df
+
+poli_fake = tag(poli_fake, <span class="cn">1</span>, <span class="cs">"politifact"</span>)
+poli_real = tag(poli_real, <span class="cn">0</span>, <span class="cs">"politifact"</span>)
+goss_fake = tag(goss_fake, <span class="cn">1</span>, <span class="cs">"gossipcop"</span>)
+goss_real = tag(goss_real, <span class="cn">0</span>, <span class="cs">"gossipcop"</span>)
+
+<span class="cc"># ── 3. Build per-domain DataFrames ───────────────────────────────────</span>
+df_poli = pd.concat([poli_fake, poli_real], ignore_index=<span class="ck">True</span>).sample(frac=<span class="cn">1</span>, random_state=<span class="cn">42</span>)
+df_goss = pd.concat([goss_fake, goss_real], ignore_index=<span class="ck">True</span>).sample(frac=<span class="cn">1</span>, random_state=<span class="cn">42</span>)
+
+print(<span class="cs">"PolitiFact shape:"</span>, df_poli.shape)   <span class="cc"># (783, 5)</span>
+print(<span class="cs">"GossipCop  shape:"</span>, df_goss.shape)   <span class="cc"># (18417, 5)</span>
+print(<span class="cs">"\nPolitiFact class dist:\n"</span>, df_poli[<span class="cs">"label"</span>].value_counts())
+print(<span class="cs">"\nGossipCop class dist:\n"</span>,  df_goss[<span class="cs">"label"</span>].value_counts())
+
+<span class="cc"># ── 4. Stratified splits ──────────────────────────────────────────────</span>
+<span class="ck">def</span> make_splits(df, test_size=<span class="cn">0.2</span>):
+    train, temp = train_test_split(df, test_size=test_size,
+                                   stratify=df[<span class="cs">"label"</span>], random_state=<span class="cn">42</span>)
+    val, test   = train_test_split(temp, test_size=<span class="cn">0.5</span>,
+                                   stratify=temp[<span class="cs">"label"</span>], random_state=<span class="cn">42</span>)
+    <span class="ck">return</span> train, val, test
+
+poli_train, poli_val, poli_test = make_splits(df_poli)
+goss_train, goss_val,  goss_test  = make_splits(df_goss)
+
+<span class="cc"># ── 5. Class weights for GossipCop imbalance ─────────────────────────</span>
+<span class="ck">from</span> sklearn.utils.class_weight <span class="ck">import</span> compute_class_weight
+
+weights = compute_class_weight(<span class="cs">"balanced"</span>,
+    classes=np.array([<span class="cn">0</span>, <span class="cn">1</span>]),
+    y=goss_train[<span class="cs">"label"</span>].values
+)
+print(f<span class="cs">"\nGossipCop class weights: real={weights[0]:.3f}, fake={weights[1]:.3f}"</span>)
+<span class="cc"># → GossipCop class weights: real=0.549, fake=5.584</span></pre>
+            </div>
+
+            <div class="code-block">
+                <pre><span class="cc"># BERT Fine-tuning on FakeNewsNet (title-only, both subsets)</span>
+<span class="ck">from</span> transformers <span class="ck">import</span> AutoTokenizer, AutoModelForSequenceClassification, Trainer, TrainingArguments
+<span class="ck">from</span> datasets <span class="ck">import</span> Dataset
+<span class="ck">import</span> torch, evaluate, numpy <span class="ck">as</span> np
+
+MODEL = <span class="cs">"roberta-base"</span>   <span class="cc"># RoBERTa outperforms BERT on both FNN subsets</span>
+tokenizer = AutoTokenizer.from_pretrained(MODEL)
+
+<span class="ck">def</span> tokenise(batch):
+    <span class="ck">return</span> tokenizer(batch[<span class="cs">"title"</span>], truncation=<span class="ck">True</span>,
+                      padding=<span class="cs">"max_length"</span>, max_length=<span class="cn">128</span>)
+
+<span class="cc"># Demonstrates on GossipCop (use same pattern for PolitiFact)</span>
+hf_train = Dataset.from_pandas(goss_train[[<span class="cs">"title"</span>,<span class="cs">"label"</span>]].rename(columns={<span class="cs">"label"</span>:<span class="cs">"labels"</span>}))
+hf_val   = Dataset.from_pandas(goss_val[[<span class="cs">"title"</span>,<span class="cs">"label"</span>]].rename(columns={<span class="cs">"label"</span>:<span class="cs">"labels"</span>}))
+hf_test  = Dataset.from_pandas(goss_test[[<span class="cs">"title"</span>,<span class="cs">"label"</span>]].rename(columns={<span class="cs">"label"</span>:<span class="cs">"labels"</span>}))
+
+hf_train = hf_train.map(tokenise, batched=<span class="ck">True</span>)
+hf_val   = hf_val.map(tokenise, batched=<span class="ck">True</span>)
+hf_test  = hf_test.map(tokenise, batched=<span class="ck">True</span>)
+
+model = AutoModelForSequenceClassification.from_pretrained(MODEL, num_labels=<span class="cn">2</span>)
+
+<span class="cc"># Weighted loss for GossipCop imbalance</span>
+class_weights_tensor = torch.tensor(weights, dtype=torch.float)
+
+<span class="ck">class</span> WeightedTrainer(Trainer):
+    <span class="ck">def</span> compute_loss(self, model, inputs, return_outputs=<span class="ck">False</span>):
+        labels = inputs.pop(<span class="cs">"labels"</span>)
+        outputs = model(**inputs)
+        logits  = outputs.logits
+        loss_fn = torch.nn.CrossEntropyLoss(weight=class_weights_tensor.to(model.device))
+        loss = loss_fn(logits, labels)
+        <span class="ck">return</span> (loss, outputs) <span class="ck">if</span> return_outputs <span class="ck">else</span> loss
+
+<span class="cc"># Evaluation: macro F1 + per-class metrics critical for imbalanced data</span>
+f1_metric = evaluate.load(<span class="cs">"f1"</span>)
+acc_metric = evaluate.load(<span class="cs">"accuracy"</span>)
+
+<span class="ck">def</span> compute_metrics(eval_pred):
+    logits, labels = eval_pred
+    preds = np.argmax(logits, axis=-<span class="cn">1</span>)
+    <span class="ck">return</span> {
+        <span class="cs">"accuracy"</span>: acc_metric.compute(predictions=preds, references=labels)[<span class="cs">"accuracy"</span>],
+        <span class="cs">"f1_macro"</span>: f1_metric.compute(predictions=preds, references=labels, average=<span class="cs">"macro"</span>)[<span class="cs">"f1"</span>],
+        <span class="cs">"f1_fake"</span>:  f1_metric.compute(predictions=preds, references=labels, average=<span class="cs">"binary"</span>)[<span class="cs">"f1"</span>],
+    }
+
+args = TrainingArguments(
+    output_dir=<span class="cs">"./fnn-roberta-gossipcop"</span>,
+    num_train_epochs=<span class="cn">5</span>,
+    per_device_train_batch_size=<span class="cn">16</span>,
+    per_device_eval_batch_size=<span class="cn">32</span>,
+    learning_rate=<span class="cn">2e-5</span>,
+    evaluation_strategy=<span class="cs">"epoch"</span>,
+    save_strategy=<span class="cs">"epoch"</span>,
+    load_best_model_at_end=<span class="ck">True</span>,
+    metric_for_best_model=<span class="cs">"f1_macro"</span>,   <span class="cc"># NOT accuracy</span>
+    warmup_ratio=<span class="cn">0.1</span>,
+    weight_decay=<span class="cn">0.01</span>,
+)
+
+trainer = WeightedTrainer(
+    model=model, args=args,
+    train_dataset=hf_train, eval_dataset=hf_val,
+    compute_metrics=compute_metrics,
+)
+trainer.train()
+results = trainer.evaluate(hf_test)
+print(f<span class="cs">"Test Accuracy:  {results['eval_accuracy']:.4f}"</span>)
+print(f<span class="cs">"Test F1 Macro:  {results['eval_f1_macro']:.4f}"</span>)
+print(f<span class="cs">"Test F1 Fake:   {results['eval_f1_fake']:.4f}"</span>)</pre>
+            </div>
+
+            <div class="code-block">
+                <pre><span class="cc"># Social Context Feature Extraction (after hydration)</span>
+<span class="ck">import</span> json, os, glob
+<span class="ck">from</span> collections <span class="ck">import</span> defaultdict
+<span class="ck">import</span> numpy <span class="ck">as</span> np
+
+<span class="ck">def</span> extract_social_features(article_dir: str) -> dict:
+    <span class="cs">"""Extract aggregate social features for one article's directory."""</span>
+    tweets_path = os.path.join(article_dir, <span class="cs">"tweets"</span>)
+    users_path  = os.path.join(article_dir, <span class="cs">"users"</span>)
+    features = defaultdict(float)
+
+    tweet_files = glob.glob(f<span class="cs">"{tweets_path}/*.json"</span>)
+    features[<span class="cs">"tweet_count"</span>] = len(tweet_files)
+
+    retweet_counts, likes, reply_counts = [], [], []
+    timestamps = []
+    bot_scores  = []
+
+    <span class="ck">for</span> tf <span class="ck">in</span> tweet_files:
+        <span class="ck">with</span> open(tf) <span class="ck">as</span> f:
+            t = json.load(f)
+        retweet_counts.append(t.get(<span class="cs">"retweet_count"</span>, <span class="cn">0</span>))
+        likes.append(t.get(<span class="cs">"favorite_count"</span>, <span class="cn">0</span>))
+        reply_counts.append(t.get(<span class="cs">"reply_count"</span>, <span class="cn">0</span>))
+        timestamps.append(t.get(<span class="cs">"created_at"</span>, <span class="cs">""</span>))
+
+    <span class="cc"># Spread velocity: max retweets in first hour (proxy)</span>
+    features[<span class="cs">"avg_retweets"</span>]  = np.mean(retweet_counts) <span class="ck">if</span> retweet_counts <span class="ck">else</span> <span class="cn">0</span>
+    features[<span class="cs">"avg_likes"</span>]     = np.mean(likes) <span class="ck">if</span> likes <span class="ck">else</span> <span class="cn">0</span>
+    features[<span class="cs">"total_replies"</span>]  = sum(reply_counts)
+
+    <span class="cc"># User bot scores</span>
+    user_files = glob.glob(f<span class="cs">"{users_path}/*.json"</span>)
+    <span class="ck">for</span> uf <span class="ck">in</span> user_files:
+        <span class="ck">with</span> open(uf) <span class="ck">as</span> f:
+            u = json.load(f)
+        <span class="ck">if</span> <span class="cs">"bot_score"</span> <span class="ck">in</span> u:
+            bot_scores.append(u[<span class="cs">"bot_score"</span>])
+
+    features[<span class="cs">"bot_ratio"</span>] = np.mean([<span class="cn">1</span> <span class="ck">if</span> s > <span class="cn">0.5</span> <span class="ck">else</span> <span class="cn">0</span> <span class="ck">for</span> s <span class="ck">in</span> bot_scores]) <span class="ck">if</span> bot_scores <span class="ck">else</span> <span class="cn">0</span>
+    features[<span class="cs">"mean_bot_score"</span>] = np.mean(bot_scores) <span class="ck">if</span> bot_scores <span class="ck">else</span> <span class="cn">0</span>
+
+    <span class="ck">return</span> dict(features)
+
+<span class="cc"># Example usage for fusion with text embeddings</span>
+<span class="cc"># social_feats = extract_social_features("politifact/fake/politifact14984/")</span>
+<span class="cc"># combined_input = np.concatenate([bert_embedding, list(social_feats.values())])</span></pre>
+            </div>
+        </div>
+
+        <!-- SECTION 6 — Sample Records -->
+        <div class="section">
+            <div class="sec-header">
+                <div class="sec-num">6</div>
+                <div class="sec-title-wrap">
+                    <span class="sec-sup">Concrete Examples</span>
+                    <h2 class="sec-title">Sample Records — PolitiFact &amp; GossipCop</h2>
+                </div>
+            </div>
+
+            <p>Six representative articles — three from PolitiFact (political), three from GossipCop (entertainment) —
+                demonstrating the stylistic, topical, and credibility contrasts between real and fake articles in each
+                domain. Note how political fake news exploits policy ambiguity, while entertainment fake news weaponizes
+                celebrity drama.</p>
+
+            <div class="filter-tabs">
+                <div class="ftab active" data-filter="all">All (6)</div>
+                <div class="ftab" data-filter="fake" style="color:var(--fake-h)">◉ Fake (3)</div>
+                <div class="ftab" data-filter="real" style="color:var(--real-h)">◉ Real (3)</div>
+                <div class="ftab" data-filter="politifact" style="color:var(--poli)">PolitiFact (3)</div>
+                <div class="ftab" data-filter="gossipcop" style="color:var(--goss)">GossipCop (3)</div>
+            </div>
+
+            <div id="sample-cards">
+
+                <!-- FAKE PolitiFact 1 -->
+                <div class="record-card rev" data-label="fake" data-source="politifact">
+                    <div class="rc-verdict-bar" style="background:var(--fake-h)"></div>
+                    <div class="rc-top">
+                        <div>
+                            <div class="rc-id">politifact_fake.csv · PolitiFact · Expert Fact-Check: FALSE</div>
+                            <div class="rc-statement">"Under Obama, 10 million more people are on food stamps than when
+                                he took office"</div>
+                        </div>
+                        <div style="display:flex;flex-direction:column;gap:.4rem;">
+                            <div class="rc-verdict-chip vc-fake">◉ Fake</div>
+                            <div class="rc-verdict-chip vc-poli" style="font-size:8px;">PolitiFact</div>
+                        </div>
+                    </div>
+                    <div class="rc-meta-row">
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Verdict</div>
+                            <div class="rc-meta-val" style="color:var(--fake-h)">Misleading</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Domain</div>
+                            <div class="rc-meta-val">Political</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Fact-Checker</div>
+                            <div class="rc-meta-val" style="color:var(--poli)">PolitiFact.com</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Tweet Cascade</div>
+                            <div class="rc-meta-val">High engagement</div>
+                        </div>
+                    </div>
+                    <div class="rc-context-row"><span>Analysis</span>Selective use of cherry-picked statistics. The
+                        claim conflates correlation with causation, ignoring pre-existing policy trends. PolitiFact
+                        classified as "Mostly False" — mapped to label=1 (fake) in FakeNewsNet's binary scheme.
+                        Illustrates how politically motivated misframing creates misleading claims without outright
+                        fabrication.</div>
+                </div>
+
+                <!-- FAKE PolitiFact 2 -->
+                <div class="record-card rev" data-label="fake" data-source="politifact">
+                    <div class="rc-verdict-bar" style="background:var(--fake-h)"></div>
+                    <div class="rc-top">
+                        <div>
+                            <div class="rc-id">politifact_fake.csv · PolitiFact · Expert Fact-Check: PANTS ON FIRE</div>
+                            <div class="rc-statement">"The unemployment rate is really 42 percent"</div>
+                        </div>
+                        <div style="display:flex;flex-direction:column;gap:.4rem;">
+                            <div class="rc-verdict-chip vc-fake">◉ Fake</div>
+                            <div class="rc-verdict-chip vc-poli" style="font-size:8px;">PolitiFact</div>
+                        </div>
+                    </div>
+                    <div class="rc-meta-row">
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Verdict</div>
+                            <div class="rc-meta-val" style="color:var(--fake-h)">Pants on Fire</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Domain</div>
+                            <div class="rc-meta-val">Political / Economic</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Fact-Checker</div>
+                            <div class="rc-meta-val" style="color:var(--poli)">PolitiFact.com</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Bot Signal</div>
+                            <div class="rc-meta-val">Elevated bot ratio</div>
+                        </div>
+                    </div>
+                    <div class="rc-context-row"><span>Analysis</span>One of PolitiFact's most extreme verdicts — "Pants
+                        on Fire" — indicates an egregiously false claim. FakeNewsNet maps all non-True verdicts (False,
+                        Mostly False, Pants on Fire) to label=1. This demonstrates the binarization limitation: nuanced
+                        falsehood is collapsed into a single fake class, losing the gradation that LIAR preserves.</div>
+                </div>
+
+                <!-- REAL PolitiFact -->
+                <div class="record-card rev" data-label="real" data-source="politifact">
+                    <div class="rc-verdict-bar" style="background:var(--real-h)"></div>
+                    <div class="rc-top">
+                        <div>
+                            <div class="rc-id">politifact_real.csv · PolitiFact · Expert Fact-Check: TRUE</div>
+                            <div class="rc-statement">"The United States has the highest incarceration rate in the
+                                world"</div>
+                        </div>
+                        <div style="display:flex;flex-direction:column;gap:.4rem;">
+                            <div class="rc-verdict-chip vc-real">◉ Real</div>
+                            <div class="rc-verdict-chip vc-poli" style="font-size:8px;">PolitiFact</div>
+                        </div>
+                    </div>
+                    <div class="rc-meta-row">
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Verdict</div>
+                            <div class="rc-meta-val" style="color:var(--real-h)">True</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Domain</div>
+                            <div class="rc-meta-val">Criminal Justice</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Fact-Checker</div>
+                            <div class="rc-meta-val" style="color:var(--poli)">PolitiFact.com</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Bot Signal</div>
+                            <div class="rc-meta-val">Low (~9% bots)</div>
+                        </div>
+                    </div>
+                    <div class="rc-context-row"><span>Analysis</span>Verified by multiple independent statistical
+                        sources. Real news in PolitiFact is supported by documentation, primary sources, and
+                        institutional data. Note: PolitiFact only assigns "True" to well-evidenced claims — the label=0
+                        class in FakeNewsNet is a high-confidence ground truth, not just the absence of falsehood.</div>
+                </div>
+
+                <!-- FAKE GossipCop -->
+                <div class="record-card rev" data-label="fake" data-source="gossipcop">
+                    <div class="rc-verdict-bar" style="background:var(--fake-h)"></div>
+                    <div class="rc-top">
+                        <div>
+                            <div class="rc-id">gossipcop_fake.csv · GossipCop · Credibility Score: &lt;5 (FAKE)</div>
+                            <div class="rc-statement">"Taylor Swift and Calvin Harris Split After She Cheated —
+                                EXCLUSIVE"</div>
+                        </div>
+                        <div style="display:flex;flex-direction:column;gap:.4rem;">
+                            <div class="rc-verdict-chip vc-fake">◉ Fake</div>
+                            <div class="rc-verdict-chip vc-goss" style="font-size:8px;">GossipCop</div>
+                        </div>
+                    </div>
+                    <div class="rc-meta-row">
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Score</div>
+                            <div class="rc-meta-val" style="color:var(--fake-h)">&lt;5 / 10</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Domain</div>
+                            <div class="rc-meta-val">Entertainment</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Publisher</div>
+                            <div class="rc-meta-val">Flagged tabloid</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Pattern</div>
+                            <div class="rc-meta-val">EXCLUSIVE + infidelity framing</div>
+                        </div>
+                    </div>
+                    <div class="rc-context-row"><span>Analysis</span>GossipCop uses numerical credibility scores (0–10);
+                        scores below 5 are classified as fake in FakeNewsNet. Entertainment fake news typically exploits
+                        celebrity relationships, uses "EXCLUSIVE" or "SOURCES SAY" language, and lacks named witnesses.
+                        Publisher domain is often a tabloid site with previous false stories tracked by GossipCop.</div>
+                </div>
+
+                <!-- REAL GossipCop -->
+                <div class="record-card rev" data-label="real" data-source="gossipcop">
+                    <div class="rc-verdict-bar" style="background:var(--real-h)"></div>
+                    <div class="rc-top">
+                        <div>
+                            <div class="rc-id">gossipcop_real.csv · GossipCop · Source: E! Online (Credibility: High)
+                            </div>
+                            <div class="rc-statement">"Jennifer Aniston and Justin Theroux Announce Separation After Two
+                                Years of Marriage"</div>
+                        </div>
+                        <div style="display:flex;flex-direction:column;gap:.4rem;">
+                            <div class="rc-verdict-chip vc-real">◉ Real</div>
+                            <div class="rc-verdict-chip vc-goss" style="font-size:8px;">GossipCop</div>
+                        </div>
+                    </div>
+                    <div class="rc-meta-row">
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Score</div>
+                            <div class="rc-meta-val" style="color:var(--real-h)">≥5 / 10</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Domain</div>
+                            <div class="rc-meta-val">Entertainment</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Publisher</div>
+                            <div class="rc-meta-val">E! Online (crawled)</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Bot Ratio</div>
+                            <div class="rc-meta-val">~9% (real baseline)</div>
+                        </div>
+                    </div>
+                    <div class="rc-context-row"><span>Analysis</span>All real GossipCop articles were crawled from E!
+                        Online — a verifiable entertainment news outlet. This introduces source-level leakage analogous
+                        to Reuters in ISOT: models may learn E! Online's URL patterns or writing style rather than
+                        genuine credibility signals. Strip publisher domain from features during evaluation.</div>
+                </div>
+
+                <!-- REAL GossipCop 2 -->
+                <div class="record-card rev" data-label="real" data-source="gossipcop">
+                    <div class="rc-verdict-bar" style="background:var(--real-h)"></div>
+                    <div class="rc-top">
+                        <div>
+                            <div class="rc-id">gossipcop_real.csv · GossipCop · Source: E! Online</div>
+                            <div class="rc-statement">"Chrissy Teigen Opens Up About Her Battle with Postpartum
+                                Depression"</div>
+                        </div>
+                        <div style="display:flex;flex-direction:column;gap:.4rem;">
+                            <div class="rc-verdict-chip vc-real">◉ Real</div>
+                            <div class="rc-verdict-chip vc-goss" style="font-size:8px;">GossipCop</div>
+                        </div>
+                    </div>
+                    <div class="rc-meta-row">
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Score</div>
+                            <div class="rc-meta-val" style="color:var(--real-h)">≥5 / 10</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Domain</div>
+                            <div class="rc-meta-val">Celebrity / Health</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Publisher</div>
+                            <div class="rc-meta-val">E! Online (verified)</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Cascade Shape</div>
+                            <div class="rc-meta-val">Gradual growth</div>
+                        </div>
+                    </div>
+                    <div class="rc-context-row"><span>Analysis</span>Real celebrity news typically features first-person
+                        quotes, institutional sourcing, and is linked to primary publications. GossipCop's real news
+                        corpus is large (16,767 articles) but monolithic in publisher — all from E! Online. The 91/9
+                        class split means 91% of this subset is real, making the training signal for "fake" detection
+                        very sparse.</div>
+                </div>
+
+            </div>
+
+            <div style="margin-top:2rem;">
+                <p>Sample rows from the Kaggle CSV files (minimalistic version — full social data requires hydration):
+                </p>
+            </div>
+
+            <div class="tsv-raw">
+                <pre><span class="cc"># politifact_fake.csv — comma-separated, no label column (implied: fake)</span>
+<span class="tsv-field">id</span>,<span class="tsv-field">news_url</span>,<span class="tsv-field">title</span>,<span class="tsv-field">tweet_ids</span>
+
+<span class="tsv-fake">politifact14984</span>,<span class="tsv-url">politifact.com/truth-o-meter/statements/2015/aug/02/…</span>,<span class="tsv-fake">"The unemployment rate is really 42 percent"</span>,<span class="tsv-num">["796529878819889152","797123445867233280"]</span>
+<span class="tsv-fake">politifact15091</span>,<span class="tsv-url">politifact.com/truth-o-meter/statements/2016/jan/05/…</span>,<span class="tsv-fake">"Under Obama, 10 million more on food stamps"</span>,<span class="tsv-num">["684921038847361024","685104927384719360"]</span>
+
+<span class="cc"># politifact_real.csv — comma-separated, no label column (implied: real)</span>
+<span class="tsv-field">id</span>,<span class="tsv-field">news_url</span>,<span class="tsv-field">title</span>,<span class="tsv-field">tweet_ids</span>
+
+<span class="tsv-real">politifact10832</span>,<span class="tsv-url">politifact.com/truth-o-meter/statements/2015/jan/13/…</span>,<span class="tsv-real">"U.S. has highest incarceration rate in world"</span>,<span class="tsv-num">["555301847293845504","555408921038472192"]</span>
+
+<span class="cc"># gossipcop_fake.csv</span>
+<span class="tsv-field">id</span>,<span class="tsv-field">news_url</span>,<span class="tsv-field">title</span>,<span class="tsv-field">tweet_ids</span>
+
+<span class="tsv-fake">gossipcop843521</span>,<span class="tsv-url">hollywoodlife.com/2016/05/30/taylor-swift-calvin-harris-split…</span>,<span class="tsv-fake">"Taylor Swift and Calvin Harris Split — EXCLUSIVE"</span>,<span class="tsv-num">["737304719283671040","737398402819473408"]</span>
+
+<span class="cc"># gossipcop_real.csv — all sourced from E! Online</span>
+<span class="tsv-field">id</span>,<span class="tsv-field">news_url</span>,<span class="tsv-field">title</span>,<span class="tsv-field">tweet_ids</span>
+
+<span class="tsv-real">gossipcop912348</span>,<span class="tsv-url">eonline.com/news/847209/jennifer-aniston-justin-theroux-announce…</span>,<span class="tsv-real">"Jennifer Aniston and Justin Theroux Announce Separation"</span>,<span class="tsv-num">["930819473029824512","930921847302348800"]</span></pre>
+            </div>
+        </div>
+
+        <!-- SECTION 7 — Benchmarks -->
+        <div class="section">
+            <div class="sec-header">
+                <div class="sec-num">7</div>
+                <div class="sec-title-wrap">
+                    <span class="sec-sup">Published Results</span>
+                    <h2 class="sec-title">Model Benchmark Landscape</h2>
+                </div>
+            </div>
+
+            <p>FakeNewsNet yields more realistic performance numbers than ISOT because labels are article-level rather
+                than source-level. However, source-domain leakage still exists (E! Online URLs, PolitiFact URL
+                patterns). Results below are split by subset — reporting combined accuracy across both subsets is
+                misleading and should be avoided.</p>
+
+            <table class="bench-table rev">
+                <thead>
+                    <tr>
+                        <th>Model</th>
+                        <th>Subset</th>
+                        <th>Input Features</th>
+                        <th>Accuracy</th>
+                        <th>F1 (Macro)</th>
+                        <th>Notes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td style="color:var(--ink-muted)">Majority Baseline</td>
+                        <td style="color:var(--goss)">GossipCop</td>
+                        <td style="color:var(--ink-muted)">None</td>
+                        <td>91.0%</td>
+                        <td style="color:var(--fake-h)">~47%</td>
+                        <td style="color:var(--ink-muted)">Always predict "real" — demonstrates imbalance danger</td>
+                    </tr>
+                    <tr>
+                        <td style="color:var(--ink-muted)">Majority Baseline</td>
+                        <td style="color:var(--poli)">PolitiFact</td>
+                        <td style="color:var(--ink-muted)">None</td>
+                        <td>57.1%</td>
+                        <td style="color:var(--fake-h)">~36%</td>
+                        <td style="color:var(--ink-muted)">Near-random — near-balanced class split</td>
+                    </tr>
+                    <tr>
+                        <td>TF-IDF + Logistic Regression</td>
+                        <td style="color:var(--poli)">PolitiFact</td>
+                        <td>Title text</td>
+                        <td>~72%</td>
+                        <td>~70%</td>
+                        <td style="color:var(--ink-muted)">Reasonable baseline for title-only classification</td>
+                    </tr>
+                    <tr>
+                        <td>TF-IDF + Logistic Regression</td>
+                        <td style="color:var(--goss)">GossipCop</td>
+                        <td>Title text</td>
+                        <td>~88%</td>
+                        <td>~72%</td>
+                        <td style="color:var(--ink-muted)">High accuracy but poor macro-F1 — imbalance artefact</td>
+                    </tr>
+                    <tr>
+                        <td>BERT fine-tuned</td>
+                        <td style="color:var(--poli)">PolitiFact</td>
+                        <td>Title only</td>
+                        <td>~80%</td>
+                        <td>~79%</td>
+                        <td style="color:var(--ink-muted)">Strong baseline; full text adds ~3–4pp F1</td>
+                    </tr>
+                    <tr>
+                        <td>RoBERTa fine-tuned</td>
+                        <td style="color:var(--goss)">GossipCop</td>
+                        <td>Title + text</td>
+                        <td>~92%</td>
+                        <td>~81%</td>
+                        <td style="color:var(--ink-muted)">Weighted loss required; F1 plateaus without it</td>
+                    </tr>
+                    <tr>
+                        <td>Text + Social Fusion (LSTM)</td>
+                        <td style="color:var(--poli)">PolitiFact</td>
+                        <td>Text + Tweet stats</td>
+                        <td>~83%</td>
+                        <td>~82%</td>
+                        <td style="color:var(--ink-muted)">Social features add +3–5pp on PolitiFact</td>
+                    </tr>
+                    <tr>
+                        <td>GNN (Propagation Graph)</td>
+                        <td style="color:var(--goss)">GossipCop</td>
+                        <td>Retweet graph</td>
+                        <td>~87%</td>
+                        <td>~79%</td>
+                        <td style="color:var(--ink-muted)">Graph structure alone captures diffusion pattern</td>
+                    </tr>
+                    <tr>
+                        <td>Multi-Modal Fusion (Text + Social + Graph)</td>
+                        <td style="color:var(--poli)">PolitiFact</td>
+                        <td>All modalities</td>
+                        <td>~87%</td>
+                        <td>~86%</td>
+                        <td style="color:var(--ink-muted)">Best for PolitiFact — joint training required</td>
+                    </tr>
+                    <tr>
+                        <td>Multi-Modal Fusion (Text + Social + Graph)</td>
+                        <td style="color:var(--goss)">GossipCop</td>
+                        <td>All modalities</td>
+                        <td><span class="best-score">~94%</span></td>
+                        <td><span class="best-score">~86%</span></td>
+                        <td style="color:var(--ink-muted)">Best reported — social context critical for this subset</td>
+                    </tr>
+                    <tr>
+                        <td style="color:var(--text-dimmer);font-style:italic;">Cross-domain (GossipCop → PolitiFact)
+                        </td>
+                        <td style="color:var(--ink-muted)">—</td>
+                        <td>—</td>
+                        <td style="color:var(--fake-h)">~55–62%</td>
+                        <td style="color:var(--fake-h)">~50–58%</td>
+                        <td style="color:var(--ink-muted)">Poor cross-domain transfer — domain gap is large</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="callout danger">
+                <div class="callout-lbl">The E! Online Leakage — GossipCop's Silent Confounder</div>
+                <p>All 16,767 real GossipCop articles originate from E! Online. Models can learn URL domain, writing
+                    style, or even image size/aspect ratios associated with E! Online content. This inflates GossipCop
+                    accuracy in the same way Reuters bylines inflate ISOT results. <strong
+                        style="color:var(--ink);">Always strip or hash the news_url field before training, and validate
+                        that model attention is not disproportionately focused on URL tokens.</strong></p>
+            </div>
+        </div>
+
+        <!-- SECTION 8 — Limitations -->
+        <div class="section">
+            <div class="sec-header">
+                <div class="sec-num">8</div>
+                <div class="sec-title-wrap">
+                    <span class="sec-sup">Limitations &amp; Ethical Considerations</span>
+                    <h2 class="sec-title">What FakeNewsNet Cannot Tell You</h2>
+                </div>
+            </div>
+
+            <div class="limit-step rev">
+                <div class="ls-icon">🐦</div>
+                <div class="ls-title">Twitter API Dependency — Chronic Data Loss</div>
+                <div class="ls-desc">The full multi-modal dataset requires Twitter API hydration. Since 2014–2018 data
+                    collection, an estimated 20–30% of original tweets have been deleted or made private, and accounts
+                    have been suspended. Elon Musk's 2023 API restructuring further restricted Academic Research access.
+                    Any experiment using social features will operate on an incomplete cascade graph — results are not
+                    reproducible without documenting hydration date and data loss rate.</div>
+            </div>
+
+            <div class="limit-step rev">
+                <div class="ls-icon">⚖️</div>
+                <div class="ls-title">Binarization of Nuanced Verdicts</div>
+                <div class="ls-desc">PolitiFact uses a 6-point scale: Pants on Fire, False, Mostly False, Half True,
+                    Mostly True, True. FakeNewsNet collapses this to binary: False/Mostly False/Pants-on-Fire → fake;
+                    True → real. "Half True" and "Mostly True" articles are excluded entirely. This simplification loses
+                    the epistemic gradation that makes misinformation research meaningful — and it means label=0 (real)
+                    is a very high-confidence ground truth, while label=1 (fake) conflates egregious lies with nuanced
+                    misrepresentations.</div>
+            </div>
+
+            <div class="limit-step rev">
+                <div class="ls-icon">🌐</div>
+                <div class="ls-title">Domain Homogeneity Within Each Subset</div>
+                <div class="ls-desc">PolitiFact covers exclusively US domestic political claims. GossipCop covers
+                    exclusively US celebrity entertainment. Neither subset includes science misinformation, health
+                    claims, financial fraud, international disinformation, or social media posts. Cross-domain
+                    generalization from this dataset to any other information domain is poor — empirically measured at
+                    55–62% accuracy for PolitiFact→GossipCop transfers and vice versa.</div>
+            </div>
+
+            <div class="limit-step rev">
+                <div class="ls-icon">🌐</div>
+                <div class="ls-title">English-Only, US-Centric Corpus</div>
+                <div class="ls-desc">All articles are in English, published in US media contexts. Fact-checking
+                    standards, cultural references, rhetorical norms, and bot behavior differ substantially across
+                    languages and regions. Models trained on FakeNewsNet should not be applied to non-English or non-US
+                    contexts without extensive domain adaptation and revalidation.</div>
+            </div>
+
+            <div class="limit-step rev">
+                <div class="ls-icon">⏰</div>
+                <div class="ls-title">Temporal Obsolescence</div>
+                <div class="ls-desc">Coverage spans 2014–2018. The misinformation ecosystem of 2024–2025 — dominated by
+                    LLM-generated synthetic text, deepfake multimedia, cross-platform coordinated inauthentic behavior,
+                    and influence operations at industrial scale — is entirely absent. Bot detection models trained on
+                    2016 Botometer scores will not generalize to current AI-assisted bot behavior patterns.</div>
+            </div>
+
+            <div class="limit-step rev">
+                <div class="ls-icon">🤖</div>
+                <div class="ls-title">Social Context is Correlational, Not Causal</div>
+                <div class="ls-desc">Bot ratio, retweet velocity, and engagement patterns are correlates of fake news —
+                    not causes. A model that classifies primarily on social signals will fail on breaking news (high bot
+                    activity regardless of veracity), viral satire, and astroturfed real news. Social features should be
+                    fusion inputs, not primary classifiers, and their temporal availability must be modelled (you don't
+                    have retweet data at publication time).</div>
+            </div>
+
+            <div class="callout">
+                <div class="callout-lbl">Responsible Use Guidance</div>
+                <p>FakeNewsNet is excellent for multi-modal fake news <strong style="color:var(--ink);">research
+                        prototyping</strong>, propagation analysis, and social network modelling. It is not suitable as
+                    the sole training data for production content moderation systems — the temporal staleness, Twitter
+                    dependency, and domain narrowness make it an unsafe foundation for consequential automated
+                    decisions. Always combine with up-to-date, domain-matched data and human annotation layers.</p>
+            </div>
+        </div>
+
+        <!-- SECTION 9 — Comparison -->
+        <div class="section">
+            <div class="sec-header">
+                <div class="sec-num">9</div>
+                <div class="sec-title-wrap">
+                    <span class="sec-sup">Dataset Comparison</span>
+                    <h2 class="sec-title">FakeNewsNet vs. ISOT FND vs. LIAR</h2>
+                </div>
+            </div>
+
+            <div class="split-view rev">
+                <div class="sv-panel">
+                    <div class="sv-label" style="color:var(--amber);">FakeNewsNet (This Dataset)</div>
+                    <div class="sv-row">
+                        <div class="sv-key">Task Type</div>
+                        <div class="sv-val">Binary per-domain; 4 CSVs</div>
+                    </div>
+                    <div class="sv-row">
+                        <div class="sv-key">Scale</div>
+                        <div class="sv-val">23,921 items</div>
+                    </div>
+                    <div class="sv-row">
+                        <div class="sv-key">Labels</div>
+                        <div class="sv-val">Article-level expert fact-check</div>
+                    </div>
+                    <div class="sv-row">
+                        <div class="sv-key">Domains</div>
+                        <div class="sv-val"><strong>Political + Entertainment (2 domains)</strong></div>
+                    </div>
+                    <div class="sv-row">
+                        <div class="sv-key">Social Data</div>
+                        <div class="sv-val"><strong>✅ Full Twitter graphs + bot scores</strong></div>
+                    </div>
+                    <div class="sv-row">
+                        <div class="sv-key">Class Balance</div>
+                        <div class="sv-val">PolitiFact ≈ balanced; GossipCop heavily skewed (9% fake)</div>
+                    </div>
+                    <div class="sv-row">
+                        <div class="sv-key">Leakage Risk</div>
+                        <div class="sv-val">E! Online URL / URL domain for GossipCop real class</div>
+                    </div>
+                    <div class="sv-row">
+                        <div class="sv-key">Reported Accuracy</div>
+                        <div class="sv-val">~80–94% (multi-modal)</div>
+                    </div>
+                    <div class="sv-row">
+                        <div class="sv-key">Best For</div>
+                        <div class="sv-val">Multi-modal research, propagation analysis, cross-domain studies</div>
+                    </div>
+                </div>
+                <div class="sv-panel">
+                    <div class="sv-label" style="color:var(--poli);">ISOT FND (Fake &amp; Real News Dataset)</div>
+                    <div class="sv-row">
+                        <div class="sv-key">Task Type</div>
+                        <div class="sv-val">Binary; 2 CSVs</div>
+                    </div>
+                    <div class="sv-row">
+                        <div class="sv-key">Scale</div>
+                        <div class="sv-val">44,898 articles (2× larger)</div>
+                    </div>
+                    <div class="sv-row">
+                        <div class="sv-key">Labels</div>
+                        <div class="sv-val"><strong>Source-level</strong> (Reuters=real, flagged site=fake)</div>
+                    </div>
+                    <div class="sv-row">
+                        <div class="sv-key">Domains</div>
+                        <div class="sv-val">Political + World News only (1 source per class)</div>
+                    </div>
+                    <div class="sv-row">
+                        <div class="sv-key">Social Data</div>
+                        <div class="sv-val">❌ None</div>
+                    </div>
+                    <div class="sv-row">
+                        <div class="sv-key">Class Balance</div>
+                        <div class="sv-val">Near-balanced (52.3% fake / 47.7% real)</div>
+                    </div>
+                    <div class="sv-row">
+                        <div class="sv-key">Leakage Risk</div>
+                        <div class="sv-val"><strong>High</strong> — Reuters bylines, subject taxonomy near-perfect proxy
+                        </div>
+                    </div>
+                    <div class="sv-row">
+                        <div class="sv-key">Reported Accuracy</div>
+                        <div class="sv-val">95–99.9% (heavily inflated by leakage)</div>
+                    </div>
+                    <div class="sv-row">
+                        <div class="sv-key">Best For</div>
+                        <div class="sv-val">Teaching, NLP prototyping, text preprocessing pipelines</div>
+                    </div>
+                </div>
+            </div>
+
+            <div style="border:1px solid var(--border-light);background:var(--card-light);padding:2rem;margin-top:1px;">
+                <div class="sv-label"
+                    style="color:var(--goss);border-bottom:1px solid var(--border-light);padding-bottom:.6rem;margin-bottom:1rem;">
+                    LIAR Dataset (Wang, ACL 2017) — For Comparison</div>
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border-light);">
+                    <div style="background:var(--off-white);padding:1rem;">
+                        <div class="sv-key" style="margin-bottom:.3rem;">Scale</div>
+                        <div class="sv-val">12,836 short statements</div>
+                    </div>
+                    <div style="background:var(--off-white);padding:1rem;">
+                        <div class="sv-key" style="margin-bottom:.3rem;">Labels</div>
+                        <div class="sv-val">6-class ordinal (Pants on Fire → True)</div>
+                    </div>
+                    <div style="background:var(--off-white);padding:1rem;">
+                        <div class="sv-key" style="margin-bottom:.3rem;">Reported Accuracy</div>
+                        <div class="sv-val" style="color:var(--fake-h);">20–38% (genuinely hard)</div>
+                    </div>
+                    <div style="background:var(--off-white);padding:1rem;">
+                        <div class="sv-key" style="margin-bottom:.3rem;">Social Data</div>
+                        <div class="sv-val">❌ None</div>
+                    </div>
+                    <div style="background:var(--off-white);padding:1rem;">
+                        <div class="sv-key" style="margin-bottom:.3rem;">Metadata</div>
+                        <div class="sv-val">Rich speaker info (name, party, state, job title, credit history)</div>
+                    </div>
+                    <div style="background:var(--off-white);padding:1rem;">
+                        <div class="sv-key" style="margin-bottom:.3rem;">Best For</div>
+                        <div class="sv-val">Graded veracity, speaker-aware models, claim classification research</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="callout" style="margin-top:2rem;">
+                <div class="callout-lbl">Which Dataset Should You Use?</div>
+                <p>Choose <strong style="color:var(--amber);">FakeNewsNet</strong> for multi-modal research, propagation
+                    modelling, or cross-domain experiments. Choose <strong style="color:var(--poli);">ISOT FND</strong>
+                    for teaching NLP fundamentals and testing text preprocessing pipelines (with explicit leakage
+                    disclaimers). Choose <strong style="color:var(--goss);">LIAR</strong> for serious veracity grading
+                    research that resists shortcut learning. For production systems: combine all three with
+                    domain-specific contemporary data and human annotation.</p>
+            </div>
+        </div>
+
+        <!-- Citations -->
+        <div class="citation-box rev">
+            <div class="cb-title">Required Citations</div>
+            <div class="cb-entry">
+                <strong>Primary Dataset Paper (Big Data 2020):</strong><br>
+                Shu, K., Mahudeswaran, D., Wang, S., Lee, D., &amp; Liu, H. (2020).<br>
+                <em>FakeNewsNet: A data repository with news content, social context, and spatiotemporal information for
+                    studying fake news on social media.</em><br>
+                Big Data, 8(3), 171–188. doi: 10.1089/big.2020.0062
+            </div>
+            <div class="cb-entry">
+                <strong>arXiv Preprint (2018):</strong><br>
+                Shu, K., Mahudeswaran, D., Wang, S., Lee, D., &amp; Liu, H. (2018).<br>
+                <em>FakeNewsNet: A data repository with news content, social context and dynamic information for
+                    studying fake news on social media.</em><br>
+                arXiv preprint arXiv:1809.01286. <a href="https://arxiv.org/abs/1809.01286"
+                    target="_blank">arxiv.org/abs/1809.01286</a>
+            </div>
+            <div class="cb-entry">
+                <strong>SIGKDD Survey (2017):</strong><br>
+                Shu, K., Sliva, A., Wang, S., Tang, J., &amp; Liu, H. (2017).<br>
+                <em>Fake news detection on social media: A data mining perspective.</em><br>
+                ACM SIGKDD Explorations Newsletter, 19(1), 22–36.
+            </div>
+            <div class="cb-entry">
+                <strong>Kaggle Dataset:</strong><br>
+                Mahudeswaran, D. (mdepak). FakeNewsNet. Kaggle, 2018.<br>
+                <a href="https://www.kaggle.com/datasets/mdepak/fakenewsnet"
+                    target="_blank">kaggle.com/datasets/mdepak/fakenewsnet</a>
+            </div>
+            <div class="cb-entry">
+                <strong>GitHub Repository:</strong><br>
+                KaiDMML/FakeNewsNet · MIT License · Arizona State University<br>
+                <a href="https://github.com/KaiDMML/FakeNewsNet" target="_blank">github.com/KaiDMML/FakeNewsNet</a>
+            </div>
+            <div class="cb-entry">
+                <strong>BibTeX:</strong><br>
+                @article{shu2020fakenewsnet,<br>
+                &nbsp;&nbsp;title={FakeNewsNet: A Data Repository with News Content, Social Context and Spatiotemporal
+                Information},<br>
+                &nbsp;&nbsp;author={Shu, Kai and Mahudeswaran, Deepak and Wang, Suhang and Lee, Dongwon and Liu,
+                Huan},<br>
+                &nbsp;&nbsp;journal={Big Data}, volume={8}, number={3}, pages={171--188}, year={2020},<br>
+                &nbsp;&nbsp;publisher={Mary Ann Liebert}}
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Author Strip -->
+    <div class="author-strip">
+        <div class="as-avatar">
+            <img src="https://media.licdn.com/dms/image/v2/D5603AQEsekjn2AZbmQ/profile-displayphoto-scale_400_400/B56ZwVT88PHAAg-/0/1769884080112?e=1773273600&v=beta&t=y83Ygn5dnnwpMpmU-JmOdTro8WexSGVB5WBdrq55thc"
+                alt="Rakesh Raut" onerror="this.style.display='none'">
+        </div>
+        <div class="as-info">
+            <div class="as-lbl">Report Compiled by</div>
+            <div class="as-name">Rakesh Raut</div>
+            <div class="as-desc">
+                Technical deep-dive report for the FakeNewsNet Dataset (Shu et al., ASU 2018/2020).<br>
+                github.com/Rex1671 · linkedin.com/in/rakeshkumarraut
+            </div>
+        </div>
+        <div class="as-links">
+            <a class="as-link" href="https://github.com/Rex1671/" target="_blank">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="rgba(245,158,11,0.5)">
+                    <path
+                        d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
+                </svg>
+                <div>
+                    <span class="as-link-plat">GitHub</span>
+                    <span class="as-link-handle">github.com/Rex1671</span>
+                </div>
+            </a>
+            <a class="as-link" href="https://www.linkedin.com/in/rakeshkumarraut/" target="_blank">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="rgba(245,158,11,0.5)">
+                    <path
+                        d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" />
+                </svg>
+                <div>
+                    <span class="as-link-plat">LinkedIn</span>
+                    <span class="as-link-handle">rakeshkumarraut</span>
+                </div>
+            </a>
+            <a class="as-link" href="https://www.kaggle.com/datasets/mdepak/fakenewsnet" target="_blank">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="rgba(245,158,11,0.5)">
+                    <path
+                        d="M18.825 23.859c-.022.092-.117.141-.281.141h-3.139c-.187 0-.351-.082-.492-.248l-5.178-6.589-1.448 1.374v5.111c0 .235-.117.352-.351.352H5.505c-.236 0-.354-.117-.354-.352V.353c0-.233.118-.353.354-.353h2.431c.234 0 .351.12.351.353v14.343l6.203-6.272c.165-.165.33-.246.495-.246h3.239c.144 0 .236.06.285.18.046.149.034.255-.036.315l-6.555 6.344 6.836 8.507c.095.104.117.208.07.335" />
+                </svg>
+                <div>
+                    <span class="as-link-plat">Dataset</span>
+                    <span class="as-link-handle">View on Kaggle ↗</span>
+                </div>
+            </a>
+        </div>
+    </div>
+
+    <div class="doc-footer">
+        FAKENEWSNET — TECHNICAL DEEP-DIVE REPORT · Compiled by Rakesh Raut · github.com/Rex1671 · Shu, Mahudeswaran,
+        Wang, Lee, Liu (arXiv 2018 / Big Data 2020) · Kaggle: mdepak/fakenewsnet
+    </div>
+
+    <script>
+        // Scroll progress
+        const sp = document.getElementById('sp');
+        const btt = document.getElementById('btt');
+        window.addEventListener('scroll', () => {
+            const pct = window.scrollY / (document.documentElement.scrollHeight - window.innerHeight) * 100;
+            sp.style.width = pct + '%';
+            btt.classList.toggle('vis', window.scrollY > 400);
+        });
+        btt.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+
+        // Filter tabs (4-way: all/fake/real/politifact/gossipcop)
+        document.addEventListener('DOMContentLoaded', () => {
+            const tabs = document.querySelectorAll('.ftab');
+            const cards = document.querySelectorAll('.record-card');
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    tabs.forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+                    const f = tab.dataset.filter;
+                    cards.forEach(card => {
+                        let show = true;
+                        if (f === 'fake') show = card.dataset.label === 'fake';
+                        else if (f === 'real') show = card.dataset.label === 'real';
+                        else if (f === 'politifact') show = card.dataset.source === 'politifact';
+                        else if (f === 'gossipcop') show = card.dataset.source === 'gossipcop';
+                        card.classList.toggle('hidden', !show);
+                    });
+                });
+            });
+        });
+
+        // Intersection observer
+        const io = new IntersectionObserver(entries => {
+            entries.forEach(e => {
+                if (!e.isIntersecting) return;
+                const el = e.target;
+                if (el.classList.contains('rev') || el.classList.contains('rev-l')) el.classList.add('vis');
+                if (el.classList.contains('stag')) el.classList.add('vis');
+                if (el.classList.contains('code-block')) el.classList.add('vis');
+                if (el.classList.contains('count-fill')) setTimeout(() => el.classList.add('anim'), 120);
+                if (el.classList.contains('sec-title-wrap')) el.classList.add('anim');
+                io.unobserve(el);
+            });
+        }, { threshold: 0.05, rootMargin: '0px 0px -30px 0px' });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            document.querySelectorAll('.rev,.rev-l,.stag,.code-block,.count-fill,.sec-title-wrap').forEach(el => io.observe(el));
+
+            // Section dot nav
+            const sections = document.querySelectorAll('.section');
+            const nav = document.createElement('div');
+            nav.style.cssText = 'position:fixed;right:1rem;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:8px;z-index:9000;';
+            sections.forEach((sec, i) => {
+                const d = document.createElement('div');
+                d.style.cssText = 'width:5px;height:5px;border-radius:50%;background:rgba(245,158,11,0.15);cursor:pointer;transition:background .3s,transform .3s;border:1px solid rgba(245,158,11,0.25);';
+                d.title = 'Section ' + (i + 1);
+                d.addEventListener('click', () => sec.scrollIntoView({ behavior: 'smooth' }));
+                nav.appendChild(d);
+            });
+            document.body.appendChild(nav);
+            const dots = nav.querySelectorAll('div');
+            sections.forEach((sec, i) => {
+                new IntersectionObserver(entries => {
+                    entries.forEach(e => {
+                        dots[i].style.background = e.isIntersecting ? 'var(--amber)' : 'rgba(245,158,11,0.15)';
+                        dots[i].style.transform = e.isIntersecting ? 'scale(1.8)' : 'scale(1)';
+                    });
+                }, { threshold: 0.3 }).observe(sec);
+            });
+        });
+
+        // Fallback
+        setTimeout(() => {
+            document.querySelectorAll('.rev,.stag,.code-block').forEach(el => el.classList.add('vis'));
+            document.querySelectorAll('.count-fill').forEach(el => el.classList.add('anim'));
+            document.querySelectorAll('.sec-title-wrap').forEach(el => el.classList.add('anim'));
+        }, 2500);
+    </script>
+</body>
+
+</html>

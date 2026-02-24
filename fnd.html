@@ -1,0 +1,3436 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fake & Real News Dataset — Technical Deep-Dive Report</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;0,700;1,300;1,400;1,600&family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=Karla:ital,wght@0,300;0,400;0,500;1,300&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --void: #06090e;
+            --abyss: #0c1420;
+            --deep: #13213a;
+            --navy: #1b3055;
+            --steel: #2a4a73;
+            --slate: #4a6d8c;
+            --silver: #8aa4b8;
+            --mist: #c4d4e0;
+            --parchment: #f0ece4;
+            --paper: #faf8f5;
+            --ink: #0e141a;
+            --muted: #5a6a78;
+            --rule: #cdd4da;
+            --pale-blue: #edf2f7;
+            --pale-warm: #faf6f0;
+            --verdict-fake: #a82828;
+            --verdict-fake-light: #d44444;
+            --verdict-real: #1a6a3a;
+            --verdict-real-light: #2ea058;
+            --accent-amber: #c49030;
+            --accent-coral: #cc6644;
+            --code-bg: #0c1420;
+            --code-fg: #b8c8d8;
+            --gold: #d4aa40;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: 'Karla', sans-serif;
+            background: var(--paper);
+            color: var(--ink);
+            font-size: 15px;
+            line-height: 1.8;
+        }
+
+        /* ═══════════ SCROLL PROGRESS ═══════════ */
+        #sp {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--verdict-fake), var(--gold), var(--verdict-real));
+            z-index: 10000;
+            width: 0%;
+            transition: width 0.15s ease-out;
+            box-shadow: 0 0 8px rgba(212, 170, 64, 0.3);
+        }
+
+        #btt {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            width: 44px;
+            height: 44px;
+            background: var(--deep);
+            color: var(--mist);
+            border: 1px solid rgba(138, 164, 184, 0.15);
+            cursor: pointer;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: opacity 0.3s, transform 0.3s, background 0.2s, border-color 0.2s;
+            z-index: 9990;
+            font-family: 'Courier Prime', monospace;
+            border-radius: 2px;
+        }
+
+        #btt.vis {
+            opacity: 1;
+            transform: none;
+        }
+
+        #btt:hover {
+            background: var(--navy);
+            border-color: rgba(212, 170, 64, 0.3);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+        }
+
+        /* ═══════════ COVER ═══════════ */
+        .cover {
+            min-height: 100vh;
+            background: var(--void);
+            color: var(--parchment);
+            position: relative;
+            overflow: hidden;
+            display: grid;
+            grid-template-rows: auto 1fr auto;
+        }
+
+        .cover::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image:
+                repeating-linear-gradient(90deg,
+                    transparent, transparent 79px,
+                    rgba(138, 164, 184, 0.03) 80px),
+                repeating-linear-gradient(0deg,
+                    transparent, transparent 79px,
+                    rgba(138, 164, 184, 0.015) 80px);
+            pointer-events: none;
+        }
+
+        .cover::after {
+            content: '';
+            position: absolute;
+            top: -20%;
+            right: -15%;
+            width: 900px;
+            height: 900px;
+            background: conic-gradient(from 220deg at 50% 50%,
+                    rgba(168, 40, 40, 0.08) 0deg,
+                    rgba(196, 144, 48, 0.05) 90deg,
+                    rgba(26, 106, 58, 0.08) 180deg,
+                    transparent 270deg);
+            border-radius: 50%;
+            pointer-events: none;
+            filter: blur(60px);
+        }
+
+        .cover-nav {
+            padding: 1.8rem 4rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(138, 164, 184, 0.1);
+            position: relative;
+            z-index: 2;
+        }
+
+        .cover-nav-brand {
+            font-family: 'Courier Prime', monospace;
+            font-size: 10px;
+            letter-spacing: 0.3em;
+            text-transform: uppercase;
+            color: rgba(196, 212, 224, 0.55);
+        }
+
+        .cover-nav-meta {
+            font-family: 'Courier Prime', monospace;
+            font-size: 10px;
+            letter-spacing: 0.12em;
+            color: rgba(196, 212, 224, 0.4);
+        }
+
+        .cover-body {
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            position: relative;
+            z-index: 2;
+        }
+
+        .cover-left {
+            padding: 4rem 4rem 3rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            border-right: 1px solid rgba(138, 164, 184, 0.07);
+        }
+
+        .cover-eyebrow {
+            font-family: 'Courier Prime', monospace;
+            font-size: 11px;
+            letter-spacing: 0.35em;
+            text-transform: uppercase;
+            color: var(--gold);
+            margin-bottom: 2rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            text-shadow: 0 0 20px rgba(212, 170, 64, 0.2);
+        }
+
+        .cover-eyebrow::after {
+            content: '';
+            flex: 1;
+            max-width: 60px;
+            height: 1px;
+            background: linear-gradient(90deg, var(--gold), transparent);
+            opacity: 0.5;
+        }
+
+        .cover-title {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: clamp(3.2rem, 7.5vw, 7rem);
+            font-weight: 700;
+            line-height: 0.9;
+            letter-spacing: -0.03em;
+            color: var(--parchment);
+            margin-bottom: 1.2rem;
+        }
+
+        .cover-title .t-fake {
+            color: var(--verdict-fake-light);
+            opacity: 0.95;
+            text-shadow: 0 0 40px rgba(212, 68, 68, 0.15);
+        }
+
+        .cover-title .t-amp {
+            font-weight: 300;
+            font-style: italic;
+            color: var(--gold);
+            opacity: 0.6;
+            font-size: 0.6em;
+        }
+
+        .cover-title .t-real {
+            color: var(--verdict-real-light);
+            opacity: 0.95;
+            text-shadow: 0 0 40px rgba(46, 160, 88, 0.15);
+        }
+
+        .cover-title sup {
+            font-size: 0.18em;
+            font-weight: 300;
+            vertical-align: super;
+            letter-spacing: 0.2em;
+            font-family: 'Courier Prime', monospace;
+            color: var(--silver);
+            opacity: 0.7;
+        }
+
+        .cover-subtitle {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: clamp(1rem, 2vw, 1.35rem);
+            font-weight: 300;
+            font-style: italic;
+            color: rgba(196, 212, 224, 0.65);
+            margin-bottom: 3rem;
+            line-height: 1.6;
+            max-width: 520px;
+        }
+
+        .binary-spectrum {
+            margin: 2.5rem 0;
+            position: relative;
+        }
+
+        .bs-label {
+            font-family: 'Courier Prime', monospace;
+            font-size: 9px;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: rgba(196, 212, 224, 0.5);
+            margin-bottom: 0.8rem;
+        }
+
+        .bs-track {
+            height: 52px;
+            border-radius: 2px;
+            display: grid;
+            grid-template-columns: 52.3% 47.7%;
+            overflow: hidden;
+            position: relative;
+            box-shadow: 0 0 50px rgba(168, 40, 40, 0.1), 0 0 50px rgba(26, 106, 58, 0.1);
+        }
+
+        .bs-half {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.8rem;
+            font-family: 'Courier Prime', monospace;
+            font-size: 11px;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            transition: flex 0.4s;
+        }
+
+        .bs-fake {
+            background: linear-gradient(135deg, #8a2020, #c03030);
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .bs-real {
+            background: linear-gradient(135deg, #165a30, #208848);
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .bs-divider {
+            position: absolute;
+            top: -6px;
+            left: 52.3%;
+            transform: translateX(-50%);
+            width: 2px;
+            height: calc(100% + 12px);
+            background: var(--gold);
+            box-shadow: 0 0 12px rgba(212, 170, 64, 0.4);
+            z-index: 2;
+        }
+
+        .bs-labels {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 0.6rem;
+            padding: 0 2%;
+        }
+
+        .bs-lbl {
+            font-family: 'Courier Prime', monospace;
+            font-size: 9px;
+            letter-spacing: 0.05em;
+            color: rgba(196, 212, 224, 0.5);
+        }
+
+        .cover-stats {
+            display: flex;
+            gap: 0;
+            margin-top: 2rem;
+            border: 1px solid rgba(138, 164, 184, 0.15);
+            background: rgba(12, 20, 32, 0.4);
+        }
+
+        .cs-item {
+            flex: 1;
+            padding: 1.2rem 1.5rem;
+            border-right: 1px solid rgba(138, 164, 184, 0.1);
+            transition: background 0.3s;
+        }
+
+        .cs-item:last-child {
+            border-right: none;
+        }
+
+        .cs-item:hover {
+            background: rgba(138, 164, 184, 0.06);
+        }
+
+        .cs-val {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 2rem;
+            font-weight: 700;
+            color: #ffffff;
+            line-height: 1;
+            margin-bottom: 4px;
+        }
+
+        .cs-lbl {
+            font-family: 'Courier Prime', monospace;
+            font-size: 9px;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: rgba(196, 212, 224, 0.5);
+        }
+
+        .cover-right {
+            padding: 3rem 2.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+            background: rgba(19, 33, 58, 0.3);
+        }
+
+        .cr-heading {
+            font-family: 'Courier Prime', monospace;
+            font-size: 9px;
+            letter-spacing: 0.25em;
+            text-transform: uppercase;
+            color: rgba(138, 164, 184, 0.25);
+            margin-bottom: 1.5rem;
+            padding-bottom: 0.8rem;
+            border-bottom: 1px solid rgba(138, 164, 184, 0.08);
+        }
+
+        .class-showcase {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .cs-card {
+            padding: 1.5rem;
+            border: 1px solid rgba(138, 164, 184, 0.08);
+            transition: background 0.2s, border-color 0.2s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .cs-card:hover {
+            background: rgba(138, 164, 184, 0.03);
+            border-color: rgba(138, 164, 184, 0.15);
+        }
+
+        .cs-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 3px;
+        }
+
+        .cs-card.card-fake::before {
+            background: linear-gradient(90deg, var(--verdict-fake), var(--verdict-fake-light));
+        }
+
+        .cs-card.card-real::before {
+            background: linear-gradient(90deg, var(--verdict-real), var(--verdict-real-light));
+        }
+
+        .cs-card-label {
+            font-family: 'Courier Prime', monospace;
+            font-size: 10px;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            margin-bottom: 0.5rem;
+            font-weight: 700;
+        }
+
+        .card-fake .cs-card-label {
+            color: var(--verdict-fake-light);
+        }
+
+        .card-real .cs-card-label {
+            color: var(--verdict-real-light);
+        }
+
+        .cs-card-count {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 2.8rem;
+            font-weight: 700;
+            line-height: 1;
+            color: var(--parchment);
+            margin-bottom: 0.3rem;
+        }
+
+        .cs-card-pct {
+            font-family: 'Courier Prime', monospace;
+            font-size: 11px;
+            color: rgba(138, 164, 184, 0.4);
+            margin-bottom: 1rem;
+        }
+
+        .cs-card-bar {
+            height: 6px;
+            border-radius: 3px;
+            background: rgba(138, 164, 184, 0.08);
+            overflow: hidden;
+        }
+
+        .cs-card-fill {
+            height: 100%;
+            border-radius: 3px;
+            width: 0;
+            transition: width 1.6s cubic-bezier(.22, .8, .46, 1);
+        }
+
+        .cs-card-fill.anim {
+            width: var(--w) !important;
+        }
+
+        .card-fake .cs-card-fill {
+            background: linear-gradient(90deg, var(--verdict-fake), var(--verdict-fake-light));
+        }
+
+        .card-real .cs-card-fill {
+            background: linear-gradient(90deg, var(--verdict-real), var(--verdict-real-light));
+        }
+
+        .cs-card-meta {
+            margin-top: 1rem;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.5rem;
+        }
+
+        .cs-card-meta-item {
+            padding: 0.4rem 0;
+        }
+
+        .cs-card-meta-key {
+            font-family: 'Courier Prime', monospace;
+            font-size: 8px;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: rgba(138, 164, 184, 0.25);
+        }
+
+        .cs-card-meta-val {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--parchment);
+        }
+
+        /* ═══════════ COVER FOOTER — IMPROVED ═══════════ */
+        .cover-footer {
+            padding: 1.5rem 4rem;
+            border-top: 1px solid rgba(138, 164, 184, 0.12);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: relative;
+            z-index: 2;
+            background: rgba(6, 9, 14, 0.5);
+            backdrop-filter: blur(4px);
+        }
+
+        .cf-left {
+            font-family: 'Courier Prime', monospace;
+            font-size: 11px;
+            color: rgba(196, 212, 224, 0.55);
+            line-height: 1.9;
+        }
+
+        .cf-left a {
+            color: var(--gold);
+            text-decoration: none;
+            opacity: 0.8;
+            transition: opacity 0.2s, color 0.2s;
+            border-bottom: 1px solid rgba(212, 170, 64, 0.2);
+            padding-bottom: 1px;
+        }
+
+        .cf-left a:hover {
+            opacity: 1;
+            border-bottom-color: var(--gold);
+            text-shadow: 0 0 12px rgba(212, 170, 64, 0.3);
+        }
+
+        .cf-right {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .cf-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            overflow: hidden;
+            border: 2px solid rgba(212, 170, 64, 0.3);
+            flex-shrink: 0;
+            box-shadow: 0 0 16px rgba(212, 170, 64, 0.1);
+        }
+
+        .cf-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 50%;
+        }
+
+        .cf-author-name {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 15px;
+            font-weight: 600;
+            color: rgba(240, 236, 228, 0.85);
+            letter-spacing: 0.02em;
+        }
+
+        /* ═══════════ DOC BODY ═══════════ */
+        .doc-body {
+            max-width: 1080px;
+            margin: 0 auto;
+            padding: 5rem 3rem;
+        }
+
+        p {
+            margin-bottom: 1.1rem;
+            color: #1e2830;
+        }
+
+        .section {
+            margin-bottom: 5.5rem;
+        }
+
+        .sec-header {
+            display: grid;
+            grid-template-columns: 48px 1fr;
+            gap: 1.5rem;
+            align-items: baseline;
+            margin-bottom: 2.5rem;
+        }
+
+        .sec-num {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 3rem;
+            font-weight: 300;
+            color: rgba(27, 48, 85, 0.15);
+            line-height: 1;
+        }
+
+        .sec-title-wrap {
+            border-bottom: 1.5px solid var(--ink);
+            padding-bottom: 0.8rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .sec-title-wrap::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            height: 1.5px;
+            width: 0%;
+            background: var(--navy);
+            transition: width 1s cubic-bezier(.22, .8, .46, 1);
+        }
+
+        .sec-title-wrap.anim::after {
+            width: 100%;
+        }
+
+        .sec-sup {
+            font-family: 'Courier Prime', monospace;
+            font-size: 9px;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: var(--steel);
+            display: block;
+            margin-bottom: 0.3rem;
+        }
+
+        .sec-title {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 2.2rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            line-height: 1.1;
+        }
+
+        .callout {
+            padding: 1.4rem 1.8rem;
+            margin: 2rem 0;
+            border-left: 3px solid var(--navy);
+            background: var(--pale-blue);
+            position: relative;
+        }
+
+        .callout.danger {
+            border-left-color: var(--verdict-fake);
+            background: rgba(168, 40, 40, 0.04);
+        }
+
+        .callout.success {
+            border-left-color: var(--verdict-real);
+            background: rgba(26, 106, 58, 0.04);
+        }
+
+        .callout.info {
+            border-left-color: var(--deep);
+            background: rgba(19, 33, 58, 0.04);
+        }
+
+        .callout.warn {
+            border-left-color: var(--accent-amber);
+            background: rgba(196, 144, 48, 0.06);
+        }
+
+        .callout-lbl {
+            font-family: 'Courier Prime', monospace;
+            font-size: 9px;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 0.5rem;
+        }
+
+        .callout p {
+            margin-bottom: 0;
+            font-size: 14px;
+        }
+
+        /* ═══════════ TABLES ═══════════ */
+        .schema-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 2.5rem 0;
+            font-size: 13.5px;
+        }
+
+        .schema-table th {
+            font-family: 'Courier Prime', monospace;
+            font-size: 9px;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            padding: 10px 14px;
+            text-align: left;
+            background: var(--deep);
+            color: var(--silver);
+            border-right: 1px solid rgba(138, 164, 184, 0.1);
+        }
+
+        .schema-table th:last-child {
+            border-right: none;
+        }
+
+        .schema-table td {
+            padding: 11px 14px;
+            border-bottom: 1px solid var(--rule);
+            vertical-align: top;
+        }
+
+        .schema-table tbody tr:hover td {
+            background: var(--pale-blue);
+        }
+
+        .td-field {
+            font-family: 'Courier Prime', monospace;
+            font-size: 12px;
+            color: var(--navy);
+            font-weight: 700;
+        }
+
+        .td-type {
+            font-family: 'Courier Prime', monospace;
+            font-size: 11px;
+            color: var(--muted);
+            background: rgba(42, 74, 115, 0.06);
+            padding: 1px 6px;
+            border-radius: 2px;
+        }
+
+        .badge-key {
+            display: inline-block;
+            font-family: 'Courier Prime', monospace;
+            font-size: 9px;
+            padding: 1px 7px;
+            background: rgba(19, 33, 58, 0.1);
+            color: var(--deep);
+            border: 1px solid rgba(19, 33, 58, 0.2);
+            border-radius: 1px;
+        }
+
+        /* ═══════════ BINARY CARDS ═══════════ */
+        .binary-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1px;
+            background: var(--rule);
+            border: 1px solid var(--rule);
+            margin: 2.5rem 0;
+        }
+
+        .binary-card {
+            background: var(--paper);
+            padding: 2.5rem 2rem;
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.25s, box-shadow 0.25s;
+            cursor: default;
+        }
+
+        .binary-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 28px rgba(14, 20, 26, 0.12);
+            z-index: 2;
+        }
+
+        .binary-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 5px;
+        }
+
+        .bc-fake::before {
+            background: linear-gradient(90deg, var(--verdict-fake), var(--verdict-fake-light));
+        }
+
+        .bc-real::before {
+            background: linear-gradient(90deg, var(--verdict-real), var(--verdict-real-light));
+        }
+
+        .binary-card-icon {
+            font-size: 4rem;
+            position: absolute;
+            top: 1rem;
+            right: 1.5rem;
+            opacity: 0.06;
+            font-family: 'Cormorant Garamond', serif;
+            font-weight: 700;
+        }
+
+        .binary-card-label {
+            font-family: 'Courier Prime', monospace;
+            font-size: 11px;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            margin-bottom: 0.8rem;
+            font-weight: 700;
+        }
+
+        .bc-fake .binary-card-label {
+            color: var(--verdict-fake);
+        }
+
+        .bc-real .binary-card-label {
+            color: var(--verdict-real);
+        }
+
+        .binary-card-count {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 3rem;
+            font-weight: 700;
+            line-height: 1;
+            color: var(--ink);
+            margin-bottom: 0.3rem;
+        }
+
+        .binary-card-pct {
+            font-family: 'Courier Prime', monospace;
+            font-size: 12px;
+            color: var(--muted);
+            margin-bottom: 1rem;
+        }
+
+        .binary-card-desc {
+            font-size: 13px;
+            color: var(--muted);
+            line-height: 1.6;
+            padding-top: 1rem;
+            border-top: 1px solid var(--rule);
+        }
+
+        .binary-card-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.8rem;
+            margin-top: 1.2rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--rule);
+        }
+
+        .bcs-item {}
+
+        .bcs-key {
+            font-family: 'Courier Prime', monospace;
+            font-size: 8px;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--muted);
+        }
+
+        .bcs-val {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: var(--ink);
+        }
+
+        /* ═══════════ META GRID ═══════════ */
+        .meta-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            margin: 2.5rem 0;
+        }
+
+        .meta-panel {
+            border: 1px solid var(--rule);
+            overflow: hidden;
+        }
+
+        .meta-panel-header {
+            background: var(--deep);
+            color: var(--silver);
+            padding: 0.8rem 1.2rem;
+            font-family: 'Courier Prime', monospace;
+            font-size: 9px;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+        }
+
+        .meta-panel-body {
+            padding: 1.2rem;
+        }
+
+        .meta-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 1rem;
+            padding: 0.6rem 0;
+            border-bottom: 1px solid var(--rule);
+            font-size: 13px;
+        }
+
+        .meta-item:last-child {
+            border-bottom: none;
+        }
+
+        .meta-key {
+            font-family: 'Courier Prime', monospace;
+            font-size: 11px;
+            color: var(--muted);
+            flex-shrink: 0;
+        }
+
+        .meta-val {
+            font-size: 13px;
+            color: var(--ink);
+            text-align: right;
+            line-height: 1.5;
+        }
+
+        /* ═══════════ DISTRIBUTION VIZ ═══════════ */
+        .dist-visual {
+            margin: 3rem 0;
+            border: 1px solid var(--rule);
+            overflow: hidden;
+        }
+
+        .dv-header {
+            background: var(--deep);
+            color: var(--silver);
+            padding: 1rem 1.5rem;
+            font-family: 'Courier Prime', monospace;
+            font-size: 9px;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+        }
+
+        .dv-body {
+            padding: 1.5rem;
+        }
+
+        .dv-row {
+            display: grid;
+            grid-template-columns: 140px 1fr 80px 70px;
+            gap: 1rem;
+            align-items: center;
+            margin-bottom: 0.8rem;
+        }
+
+        .dv-name {
+            font-family: 'Courier Prime', monospace;
+            font-size: 11px;
+            color: var(--deep);
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .dv-track {
+            height: 24px;
+            background: var(--pale-blue);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .dv-fill {
+            height: 100%;
+            border-radius: 2px;
+            width: 0;
+            transition: width 1.3s cubic-bezier(.22, .8, .46, 1);
+            display: flex;
+            align-items: center;
+            padding-left: 8px;
+        }
+
+        .dv-fill.anim {
+            width: var(--w) !important;
+        }
+
+        .dv-fill-label {
+            font-family: 'Courier Prime', monospace;
+            font-size: 9px;
+            color: rgba(255, 255, 255, 0.75);
+            white-space: nowrap;
+            overflow: hidden;
+        }
+
+        .dv-count {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 1.1rem;
+            font-weight: 700;
+            text-align: right;
+        }
+
+        .dv-pct {
+            font-family: 'Courier Prime', monospace;
+            font-size: 11px;
+            color: var(--muted);
+            text-align: right;
+        }
+
+        /* ═══════════ SPLIT VIEW ═══════════ */
+        .split-view {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1px;
+            background: var(--rule);
+            border: 1px solid var(--rule);
+            margin: 2.5rem 0;
+        }
+
+        .sv-panel {
+            background: var(--paper);
+            padding: 2rem;
+        }
+
+        .sv-panel-label {
+            font-family: 'Courier Prime', monospace;
+            font-size: 9px;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 1rem;
+            padding-bottom: 0.6rem;
+            border-bottom: 1px solid var(--rule);
+        }
+
+        .speaker-bar {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 0.7rem;
+        }
+
+        .spk-name {
+            font-family: 'Courier Prime', monospace;
+            font-size: 10px;
+            width: 130px;
+            flex-shrink: 0;
+            color: var(--muted);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .spk-track {
+            flex: 1;
+            height: 14px;
+            background: var(--pale-blue);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .spk-fill {
+            height: 100%;
+            background: var(--navy);
+            width: 0;
+            transition: width 1.2s cubic-bezier(.22, .8, .46, 1);
+        }
+
+        .spk-fill.anim {
+            width: var(--w) !important;
+        }
+
+        .spk-count {
+            font-family: 'Courier Prime', monospace;
+            font-size: 10px;
+            color: var(--deep);
+            width: 55px;
+            text-align: right;
+            flex-shrink: 0;
+        }
+
+        /* ═══════════ PIPELINE ═══════════ */
+        .pipeline {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1px;
+            background: var(--ink);
+            border: 1.5px solid var(--ink);
+            margin: 2.5rem 0;
+        }
+
+        .pipe-step {
+            background: var(--paper);
+            padding: 2rem 1.8rem;
+            position: relative;
+            transition: background 0.2s;
+        }
+
+        .pipe-step:hover {
+            background: var(--pale-blue);
+        }
+
+        .ps-num {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 4rem;
+            font-weight: 700;
+            color: rgba(27, 48, 85, 0.05);
+            position: absolute;
+            top: 0.5rem;
+            right: 1rem;
+            line-height: 1;
+        }
+
+        .ps-title {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 1.15rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            position: relative;
+        }
+
+        .ps-desc {
+            font-size: 13px;
+            color: var(--muted);
+            line-height: 1.65;
+            position: relative;
+        }
+
+        /* ═══════════ CODE BLOCK ═══════════ */
+        .code-block {
+            background: var(--code-bg);
+            padding: 1.6rem 2rem;
+            margin: 2rem 0;
+            overflow-x: auto;
+            border-left: 3px solid var(--navy);
+            opacity: 0;
+            transform: translateY(12px);
+            transition: opacity 0.55s, transform 0.55s;
+            border-radius: 0 2px 2px 0;
+        }
+
+        .code-block.vis {
+            opacity: 1;
+            transform: none;
+        }
+
+        .code-block pre {
+            font-family: 'Courier Prime', monospace;
+            font-size: 12px;
+            color: var(--code-fg);
+            line-height: 1.9;
+            white-space: pre;
+        }
+
+        .cc {
+            color: #3a5570;
+        }
+
+        .cs {
+            color: #7ab0d4;
+        }
+
+        .ck {
+            color: #d4aa40;
+        }
+
+        .cn {
+            color: #c8a060;
+        }
+
+        .cf {
+            color: #70b880;
+        }
+
+        /* ═══════════ BENCH TABLE ═══════════ */
+        .bench-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 2.5rem 0;
+            font-size: 13.5px;
+        }
+
+        .bench-table th {
+            font-family: 'Courier Prime', monospace;
+            font-size: 9px;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            padding: 10px 14px;
+            text-align: left;
+            background: var(--void);
+            color: rgba(138, 164, 184, 0.5);
+            border-right: 1px solid rgba(138, 164, 184, 0.07);
+        }
+
+        .bench-table th:last-child {
+            border-right: none;
+        }
+
+        .bench-table td {
+            padding: 12px 14px;
+            border-bottom: 1px solid var(--rule);
+            vertical-align: middle;
+        }
+
+        .bench-table tbody tr:hover td {
+            background: var(--pale-blue);
+        }
+
+        .bench-table tbody tr {
+            transition: background 0.2s, transform 0.2s;
+        }
+
+        .best-score {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: var(--verdict-real);
+        }
+
+        /* ═══════════ SAMPLE RECORDS ═══════════ */
+        .filter-tabs {
+            display: flex;
+            gap: 0;
+            border: 1px solid var(--rule);
+            margin-bottom: 1.5rem;
+            overflow: hidden;
+            border-radius: 2px;
+        }
+
+        .ftab {
+            flex: 1;
+            padding: 0.7rem 0.4rem;
+            text-align: center;
+            font-family: 'Courier Prime', monospace;
+            font-size: 10px;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            cursor: pointer;
+            border-right: 1px solid var(--rule);
+            transition: background 0.2s, color 0.2s;
+            background: var(--paper);
+            color: var(--muted);
+            user-select: none;
+        }
+
+        .ftab:last-child {
+            border-right: none;
+        }
+
+        .ftab.active {
+            background: var(--deep);
+            color: var(--parchment) !important;
+        }
+
+        .ftab:hover:not(.active) {
+            background: var(--pale-blue);
+            color: var(--deep);
+        }
+
+        .record-card {
+            border: 1.5px solid var(--ink);
+            margin-bottom: 1.5rem;
+            position: relative;
+            overflow: hidden;
+            transition: box-shadow 0.3s, transform 0.2s;
+        }
+
+        .record-card:hover {
+            box-shadow: 5px 5px 0 var(--ink);
+            transform: translate(-2px, -2px);
+        }
+
+        .record-card.hidden {
+            display: none;
+        }
+
+        .rc-verdict-bar {
+            height: 5px;
+        }
+
+        .rc-top {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 1rem;
+            padding: 1.2rem 1.5rem 0.8rem;
+            border-bottom: 1px solid var(--rule);
+            background: var(--pale-blue);
+        }
+
+        .rc-id {
+            font-family: 'Courier Prime', monospace;
+            font-size: 9px;
+            letter-spacing: 0.15em;
+            color: var(--muted);
+            margin-bottom: 0.3rem;
+        }
+
+        .rc-title-text {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 1.1rem;
+            font-weight: 700;
+            line-height: 1.35;
+            color: var(--ink);
+            margin-bottom: 0.4rem;
+        }
+
+        .rc-body-text {
+            font-size: 12.5px;
+            color: var(--muted);
+            line-height: 1.6;
+            max-height: 80px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .rc-body-text::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 30px;
+            background: linear-gradient(transparent, var(--pale-blue));
+        }
+
+        .rc-verdict-chip {
+            font-family: 'Courier Prime', monospace;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            padding: 5px 14px;
+            border-radius: 2px;
+            white-space: nowrap;
+            align-self: flex-start;
+            flex-shrink: 0;
+        }
+
+        .vc-fake-chip {
+            background: rgba(168, 40, 40, 0.12);
+            color: var(--verdict-fake);
+            border: 1px solid rgba(168, 40, 40, 0.3);
+        }
+
+        .vc-real-chip {
+            background: rgba(26, 106, 58, 0.12);
+            color: var(--verdict-real);
+            border: 1px solid rgba(26, 106, 58, 0.3);
+        }
+
+        .rc-meta-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0;
+            border-bottom: 1px solid var(--rule);
+        }
+
+        .rc-meta-cell {
+            padding: 0.7rem 1.2rem;
+            border-right: 1px solid var(--rule);
+            min-width: 120px;
+        }
+
+        .rc-meta-cell:last-child {
+            border-right: none;
+        }
+
+        .rc-meta-key {
+            font-family: 'Courier Prime', monospace;
+            font-size: 8px;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 3px;
+        }
+
+        .rc-meta-val {
+            font-family: 'Courier Prime', monospace;
+            font-size: 11px;
+            color: var(--deep);
+            font-weight: 700;
+            line-height: 1.3;
+        }
+
+        /* ═══════════ TEXT ANALYSIS VIZ ═══════════ */
+        .text-analysis-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1px;
+            background: var(--rule);
+            border: 1px solid var(--rule);
+            margin: 2.5rem 0;
+        }
+
+        .ta-card {
+            background: var(--paper);
+            padding: 1.8rem;
+            text-align: center;
+            transition: background 0.2s;
+        }
+
+        .ta-card:hover {
+            background: var(--pale-blue);
+        }
+
+        .ta-label {
+            font-family: 'Courier Prime', monospace;
+            font-size: 9px;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 0.5rem;
+        }
+
+        .ta-val {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 2.4rem;
+            font-weight: 700;
+            line-height: 1;
+            color: var(--ink);
+            margin-bottom: 0.2rem;
+        }
+
+        .ta-sub {
+            font-family: 'Courier Prime', monospace;
+            font-size: 10px;
+            color: var(--muted);
+        }
+
+        /* ═══════════ COMPARISON TABLE ═══════════ */
+        .compare-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 2.5rem 0;
+            font-size: 13px;
+        }
+
+        .compare-table th {
+            font-family: 'Courier Prime', monospace;
+            font-size: 9px;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            padding: 10px 14px;
+            text-align: left;
+            background: var(--void);
+            color: rgba(138, 164, 184, 0.5);
+            border-right: 1px solid rgba(138, 164, 184, 0.07);
+        }
+
+        .compare-table th:last-child {
+            border-right: none;
+        }
+
+        .compare-table td {
+            padding: 10px 14px;
+            border-bottom: 1px solid var(--rule);
+            vertical-align: top;
+        }
+
+        .compare-table tbody tr:hover td {
+            background: var(--pale-blue);
+        }
+
+        .compare-check {
+            color: var(--verdict-real);
+            font-weight: 700;
+        }
+
+        .compare-x {
+            color: var(--verdict-fake);
+            font-weight: 700;
+        }
+
+        /* ═══════════ CITATION ═══════════ */
+        .citation-box {
+            background: var(--void);
+            color: var(--parchment);
+            padding: 2.5rem 3rem;
+            margin: 3rem 0;
+            border: 1px solid rgba(138, 164, 184, 0.08);
+        }
+
+        .cb-title {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--gold);
+            margin-bottom: 1.2rem;
+            padding-bottom: 0.8rem;
+            border-bottom: 1px solid rgba(212, 170, 64, 0.15);
+        }
+
+        .cb-entry {
+            font-family: 'Courier Prime', monospace;
+            font-size: 11.5px;
+            color: rgba(138, 164, 184, 0.5);
+            line-height: 1.9;
+            margin-bottom: 1rem;
+        }
+
+        .cb-entry strong {
+            color: rgba(138, 164, 184, 0.8);
+        }
+
+        .cb-entry em {
+            color: rgba(138, 164, 184, 0.65);
+            font-style: italic;
+        }
+
+        .cb-entry a {
+            color: var(--gold);
+            text-decoration: none;
+            border-bottom: 1px solid rgba(212, 170, 64, 0.3);
+            transition: border-color 0.2s;
+        }
+
+        .cb-entry a:hover {
+            border-color: var(--gold);
+        }
+
+        /* ═══════════ AUTHOR STRIP ═══════════ */
+        .author-strip {
+            background: var(--deep);
+            padding: 4rem;
+            display: flex;
+            align-items: center;
+            gap: 3rem;
+            flex-wrap: wrap;
+        }
+
+        .as-avatar {
+            width: 88px;
+            height: 88px;
+            border-radius: 50%;
+            overflow: hidden;
+            border: 2px solid rgba(212, 170, 64, 0.25);
+            flex-shrink: 0;
+            position: relative;
+        }
+
+        .as-avatar::after {
+            content: '';
+            position: absolute;
+            inset: -3px;
+            border-radius: 50%;
+            border: 1px solid rgba(212, 170, 64, 0.15);
+            animation: ring 2.5s ease-in-out infinite;
+        }
+
+        @keyframes ring {
+
+            0%,
+            100% {
+                transform: scale(1);
+                opacity: 0.5;
+            }
+
+            50% {
+                transform: scale(1.08);
+                opacity: 0.15;
+            }
+        }
+
+        .as-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 50%;
+            display: block;
+        }
+
+        .as-info {
+            flex: 1;
+            min-width: 220px;
+        }
+
+        .as-lbl {
+            font-family: 'Courier Prime', monospace;
+            font-size: 9px;
+            letter-spacing: 0.25em;
+            text-transform: uppercase;
+            color: rgba(138, 164, 184, 0.35);
+            margin-bottom: 0.3rem;
+        }
+
+        .as-name {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 2.2rem;
+            font-weight: 700;
+            color: var(--parchment);
+            line-height: 1.1;
+            margin-bottom: 0.4rem;
+        }
+
+        .as-desc {
+            font-size: 13px;
+            color: rgba(138, 164, 184, 0.4);
+            line-height: 1.7;
+        }
+
+        .as-links {
+            display: flex;
+            flex-direction: column;
+            gap: 0.6rem;
+        }
+
+        .as-link {
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+            text-decoration: none;
+            padding: 0.6rem 1.2rem;
+            border: 1px solid rgba(212, 170, 64, 0.12);
+            min-width: 230px;
+            transition: all 0.2s;
+            background: rgba(212, 170, 64, 0.03);
+        }
+
+        .as-link:hover {
+            border-color: rgba(212, 170, 64, 0.3);
+            background: rgba(212, 170, 64, 0.06);
+        }
+
+        .as-link-plat {
+            font-family: 'Courier Prime', monospace;
+            font-size: 9px;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: rgba(138, 164, 184, 0.3);
+            display: block;
+        }
+
+        .as-link-handle {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--parchment);
+        }
+
+        .doc-footer {
+            background: var(--void);
+            color: rgba(138, 164, 184, 0.3);
+            padding: 1.5rem 3rem;
+            text-align: center;
+            font-family: 'Courier Prime', monospace;
+            font-size: 10px;
+            letter-spacing: 0.1em;
+            border-top: 1px solid rgba(138, 164, 184, 0.06);
+        }
+
+        /* ═══════════ SECTION NAV DOTS ═══════════ */
+        .section-nav {
+            position: fixed;
+            right: 1.2rem;
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 9000;
+        }
+
+        .section-nav .dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: rgba(27, 48, 85, 0.15);
+            cursor: pointer;
+            transition: background 0.3s, transform 0.3s, box-shadow 0.3s;
+            border: 1px solid rgba(27, 48, 85, 0.25);
+        }
+
+        .section-nav .dot.active {
+            background: var(--steel);
+            transform: scale(1.7);
+            box-shadow: 0 0 8px rgba(42, 74, 115, 0.3);
+            border-color: var(--steel);
+        }
+
+        /* ═══════════ ANIMATIONS ═══════════ */
+        .rev {
+            opacity: 0;
+            transform: translateY(28px);
+            transition: opacity 0.7s cubic-bezier(.22, .8, .46, 1), transform 0.7s cubic-bezier(.22, .8, .46, 1);
+        }
+
+        .rev.vis {
+            opacity: 1;
+            transform: none;
+        }
+
+        .rev-l {
+            opacity: 0;
+            transform: translateX(-28px);
+            transition: opacity 0.7s cubic-bezier(.22, .8, .46, 1), transform 0.7s cubic-bezier(.22, .8, .46, 1);
+        }
+
+        .rev-l.vis {
+            opacity: 1;
+            transform: none;
+        }
+
+        .stag>* {
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.5s, transform 0.5s cubic-bezier(.22, .8, .46, 1);
+        }
+
+        .stag.vis>*:nth-child(1) {
+            opacity: 1;
+            transform: none;
+            transition-delay: 0.05s;
+        }
+
+        .stag.vis>*:nth-child(2) {
+            opacity: 1;
+            transform: none;
+            transition-delay: 0.13s;
+        }
+
+        .stag.vis>*:nth-child(3) {
+            opacity: 1;
+            transform: none;
+            transition-delay: 0.21s;
+        }
+
+        .stag.vis>*:nth-child(4) {
+            opacity: 1;
+            transform: none;
+            transition-delay: 0.29s;
+        }
+
+        .stag.vis>*:nth-child(5) {
+            opacity: 1;
+            transform: none;
+            transition-delay: 0.37s;
+        }
+
+        .stag.vis>*:nth-child(6) {
+            opacity: 1;
+            transform: none;
+            transition-delay: 0.45s;
+        }
+
+        @keyframes fadeUp {
+            from {
+                opacity: 0;
+                transform: translateY(26px)
+            }
+
+            to {
+                opacity: 1;
+                transform: none
+            }
+        }
+
+        @keyframes slideL {
+            from {
+                opacity: 0;
+                transform: translateX(-26px)
+            }
+
+            to {
+                opacity: 1;
+                transform: none
+            }
+        }
+
+        .cover-eyebrow {
+            animation: fadeUp 0.6s 0.1s both;
+        }
+
+        .cover-title {
+            animation: fadeUp 0.8s 0.25s both;
+        }
+
+        .cover-subtitle {
+            animation: fadeUp 0.7s 0.4s both;
+        }
+
+        .binary-spectrum {
+            animation: fadeUp 0.7s 0.55s both;
+        }
+
+        .cover-stats {
+            animation: fadeUp 0.6s 0.7s both;
+        }
+
+        .cover-right>* {
+            animation: slideL 0.6s both;
+        }
+
+        .cr-heading {
+            animation-delay: 0.35s;
+        }
+
+        .class-showcase>*:nth-child(1) {
+            animation-delay: 0.45s;
+        }
+
+        .class-showcase>*:nth-child(2) {
+            animation-delay: 0.6s;
+        }
+
+        @media (max-width: 860px) {
+            .cover-body {
+                grid-template-columns: 1fr;
+            }
+
+            .cover-right {
+                display: none;
+            }
+
+            .binary-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .meta-grid,
+            .split-view {
+                grid-template-columns: 1fr;
+            }
+
+            .pipeline {
+                grid-template-columns: 1fr;
+            }
+
+            .text-analysis-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .doc-body {
+                padding: 3rem 1.5rem;
+            }
+
+            .cover-left {
+                padding: 2.5rem 2rem;
+            }
+
+            .cover-nav {
+                padding: 1.2rem 1.5rem;
+            }
+
+            .cover-footer {
+                padding: 1.2rem 1.5rem;
+                flex-direction: column;
+                gap: 1rem;
+                text-align: center;
+            }
+
+            .cf-left {
+                text-align: center;
+            }
+
+            .author-strip {
+                padding: 2rem;
+                gap: 1.5rem;
+            }
+
+            .section-nav {
+                display: none;
+            }
+
+            .dv-row {
+                grid-template-columns: 100px 1fr 60px 50px;
+                gap: 0.5rem;
+            }
+
+            .dv-name {
+                font-size: 9px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .cover-stats {
+                flex-wrap: wrap;
+            }
+
+            .cs-item {
+                min-width: 45%;
+                border-bottom: 1px solid rgba(138, 164, 184, 0.1);
+            }
+
+            .rc-meta-row {
+                flex-direction: column;
+            }
+
+            .rc-meta-cell {
+                border-right: none;
+                border-bottom: 1px solid var(--rule);
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="sp"></div>
+    <button id="btt" aria-label="Back to top">↑</button>
+
+    <!-- ═══════════ COVER ═══════════ -->
+    <div class="cover">
+        <nav class="cover-nav">
+            <div class="cover-nav-brand">Technical Dataset Report · NLP · Binary Fake News Detection</div>
+            <div class="cover-nav-meta">Compiled by Rakesh Raut · github.com/Rex1671</div>
+        </nav>
+
+        <div class="cover-body">
+            <div class="cover-left">
+                <div class="cover-eyebrow">Binary News Classification</div>
+
+                <h1 class="cover-title">
+                    <span class="t-fake">Fake</span>
+                    <span class="t-amp">&</span>
+                    <span class="t-real">Real</span><br>
+                    News<sup>dataset</sup>
+                </h1>
+
+                <div class="cover-subtitle">
+                    44,898 full-length news articles partitioned into two definitive classes —<br>
+                    the largest clean binary fake news corpus on Kaggle, engineered for rapid benchmarking
+                </div>
+
+                <div class="binary-spectrum">
+                    <div class="bs-label">The Binary Divide — Two Classes, No Middle Ground</div>
+                    <div class="bs-track">
+                        <div class="bs-half bs-fake">
+                            <span>✕</span> FAKE · 23,481
+                        </div>
+                        <div class="bs-half bs-real">
+                            <span>✓</span> REAL · 21,417
+                        </div>
+                        <div class="bs-divider"></div>
+                    </div>
+                    <div class="bs-labels">
+                        <div class="bs-lbl">Fabricated / Unreliable Sources</div>
+                        <div class="bs-lbl">Reuters Verified Journalism</div>
+                    </div>
+                </div>
+
+                <div class="cover-stats">
+                    <div class="cs-item">
+                        <div class="cs-val">44,898</div>
+                        <div class="cs-lbl">Total Articles</div>
+                    </div>
+                    <div class="cs-item">
+                        <div class="cs-val">2</div>
+                        <div class="cs-lbl">Label Classes</div>
+                    </div>
+                    <div class="cs-item">
+                        <div class="cs-val">4</div>
+                        <div class="cs-lbl">Feature Columns</div>
+                    </div>
+                    <div class="cs-item">
+                        <div class="cs-val">~3yr</div>
+                        <div class="cs-lbl">Temporal Span</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="cover-right">
+                <div class="cr-heading">Class Breakdown — Full Corpus</div>
+                <div class="class-showcase">
+
+                    <div class="cs-card card-fake">
+                        <div class="cs-card-label">● Fake News</div>
+                        <div class="cs-card-count">23,481</div>
+                        <div class="cs-card-pct">52.3% of corpus</div>
+                        <div class="cs-card-bar">
+                            <div class="cs-card-fill" style="--w:100%"></div>
+                        </div>
+                        <div class="cs-card-meta">
+                            <div class="cs-card-meta-item">
+                                <div class="cs-card-meta-key">Source File</div>
+                                <div class="cs-card-meta-val">Fake.csv</div>
+                            </div>
+                            <div class="cs-card-meta-item">
+                                <div class="cs-card-meta-key">Subjects</div>
+                                <div class="cs-card-meta-val">6 topics</div>
+                            </div>
+                            <div class="cs-card-meta-item">
+                                <div class="cs-card-meta-key">Avg Length</div>
+                                <div class="cs-card-meta-val">~4,600 chars</div>
+                            </div>
+                            <div class="cs-card-meta-item">
+                                <div class="cs-card-meta-key">Date Range</div>
+                                <div class="cs-card-meta-val">2015–2018</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="cs-card card-real">
+                        <div class="cs-card-label">● Real News</div>
+                        <div class="cs-card-count">21,417</div>
+                        <div class="cs-card-pct">47.7% of corpus</div>
+                        <div class="cs-card-bar">
+                            <div class="cs-card-fill" style="--w:91.2%"></div>
+                        </div>
+                        <div class="cs-card-meta">
+                            <div class="cs-card-meta-item">
+                                <div class="cs-card-meta-key">Source File</div>
+                                <div class="cs-card-meta-val">True.csv</div>
+                            </div>
+                            <div class="cs-card-meta-item">
+                                <div class="cs-card-meta-key">Source Org</div>
+                                <div class="cs-card-meta-val">Reuters</div>
+                            </div>
+                            <div class="cs-card-meta-item">
+                                <div class="cs-card-meta-key">Avg Length</div>
+                                <div class="cs-card-meta-val">~3,200 chars</div>
+                            </div>
+                            <div class="cs-card-meta-item">
+                                <div class="cs-card-meta-key">Date Range</div>
+                                <div class="cs-card-meta-val">2016–2017</div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <div class="cover-footer">
+            <div class="cf-left">
+                Clément Bisaillon · Kaggle Dataset · <a
+                    href="https://www.kaggle.com/datasets/clmentbisaillon/fake-and-real-news-dataset"
+                    target="_blank">kaggle.com/datasets/clmentbisaillon/fake-and-real-news-dataset</a><br>
+                Sources: Reuters (real) · Various unreliable outlets (fake) · 2015–2018
+            </div>
+            <div class="cf-right">
+                <div class="cf-avatar">
+                    <img src="https://media.licdn.com/dms/image/v2/D5603AQEsekjn2AZbmQ/profile-displayphoto-scale_400_400/B56ZwVT88PHAAg-/0/1769884080112?e=1773273600&v=beta&t=y83Ygn5dnnwpMpmU-JmOdTro8WexSGVB5WBdrq55thc"
+                        alt="Rakesh Raut" onerror="this.style.display='none'">
+                </div>
+                <div class="cf-author-name">Rakesh Raut</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════ DOCUMENT BODY ═══════════ -->
+    <div class="doc-body">
+
+        <!-- SECTION 1 -->
+        <div class="section">
+            <div class="sec-header">
+                <div class="sec-num">1</div>
+                <div class="sec-title-wrap">
+                    <span class="sec-sup">Introduction</span>
+                    <h2 class="sec-title">What Is the Fake & Real News Dataset?</h2>
+                </div>
+            </div>
+
+            <p>The Fake and Real News Dataset, curated by Clément Bisaillon and hosted on Kaggle, is a widely-used
+                binary classification corpus consisting of <strong>44,898 full-length English news articles</strong>
+                divided into two CSV files — <code
+                    style="font-family:'Courier Prime',monospace;font-size:12px;background:var(--pale-blue);padding:1px 5px;">Fake.csv</code>
+                and <code
+                    style="font-family:'Courier Prime',monospace;font-size:12px;background:var(--pale-blue);padding:1px 5px;">True.csv</code>.
+                It has become one of the most downloaded fake news datasets on Kaggle, with thousands of notebooks,
+                research papers, and student projects built on top of it.</p>
+
+            <p>The <strong>real news</strong> articles are sourced primarily from <strong>Reuters.com</strong>, one of
+                the world's most respected wire services, providing a gold standard of journalistic rigour. The
+                <strong>fake news</strong> articles were collected from sources flagged as unreliable by Politifact and
+                Wikipedia, comprising fabricated, misleading, or heavily biased content. Each article includes a title,
+                full body text, a subject category, and a publication date.
+            </p>
+
+            <p>Unlike the LIAR dataset's six-point veracity scale, this corpus offers a clean <strong>binary
+                    split</strong> — making it ideal as a first benchmark for NLP students and practitioners entering
+                the fake news detection space. However, this very simplicity also introduces significant methodological
+                pitfalls that researchers must carefully navigate.</p>
+
+            <div class="callout info">
+                <div class="callout-lbl">Why This Dataset Matters</div>
+                <p>This is the most accessible large-scale fake news dataset available. Its size (44K+ articles), clean
+                    formatting (CSV with headers), full article text (not just headlines or single sentences), and
+                    binary labelling make it the de facto starting point for binary fake news classification benchmarks.
+                    But its ease of use masks critical data leakage risks — particularly the Reuters byline problem —
+                    which every serious researcher must address.</p>
+            </div>
+
+            <div class="meta-grid rev">
+                <div class="meta-panel">
+                    <div class="meta-panel-header">Dataset Identity</div>
+                    <div class="meta-panel-body">
+                        <div class="meta-item"><span class="meta-key">Full Name</span><span class="meta-val">Fake and
+                                Real News Dataset</span></div>
+                        <div class="meta-item"><span class="meta-key">Curator</span><span class="meta-val">Clément
+                                Bisaillon</span></div>
+                        <div class="meta-item"><span class="meta-key">Platform</span><span
+                                class="meta-val">Kaggle</span></div>
+                        <div class="meta-item"><span class="meta-key">Real News Source</span><span
+                                class="meta-val">Reuters.com</span></div>
+                        <div class="meta-item"><span class="meta-key">Fake News Source</span><span
+                                class="meta-val">Flagged unreliable outlets</span></div>
+                        <div class="meta-item"><span class="meta-key">License</span><span class="meta-val">CC0: Public
+                                Domain</span></div>
+                    </div>
+                </div>
+                <div class="meta-panel">
+                    <div class="meta-panel-header">Corpus Statistics</div>
+                    <div class="meta-panel-body">
+                        <div class="meta-item"><span class="meta-key">Total Articles</span><span
+                                class="meta-val">44,898</span></div>
+                        <div class="meta-item"><span class="meta-key">Fake Articles</span><span class="meta-val">23,481
+                                (52.3%)</span></div>
+                        <div class="meta-item"><span class="meta-key">Real Articles</span><span class="meta-val">21,417
+                                (47.7%)</span></div>
+                        <div class="meta-item"><span class="meta-key">Features</span><span class="meta-val">4 columns
+                                (title, text, subject, date)</span></div>
+                        <div class="meta-item"><span class="meta-key">Temporal Coverage</span><span
+                                class="meta-val">~2015 – 2018</span></div>
+                        <div class="meta-item"><span class="meta-key">Pre-split?</span><span class="meta-val">No (user
+                                must split)</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SECTION 2 -->
+        <div class="section">
+            <div class="sec-header">
+                <div class="sec-num">2</div>
+                <div class="sec-title-wrap">
+                    <span class="sec-sup">Label Taxonomy</span>
+                    <h2 class="sec-title">Binary Classification — Fake vs. Real</h2>
+                </div>
+            </div>
+
+            <p>Unlike multi-class veracity datasets, this corpus uses a hard binary partition. Each article is either
+                entirely <strong>Fake</strong> (sourced from unreliable outlets) or entirely <strong>Real</strong>
+                (sourced from Reuters). There is no middle ground, no "half-true," no gradation. This makes the task
+                conceptually simpler — but introduces source-level bias, since the label is determined by the
+                <em>outlet</em>, not by per-claim fact-checking.
+            </p>
+
+            <div class="binary-grid stag">
+                <div class="binary-card bc-fake">
+                    <div class="binary-card-icon">✕</div>
+                    <div class="binary-card-label">Fake News</div>
+                    <div class="binary-card-count">23,481</div>
+                    <div class="binary-card-pct">52.30% of total corpus</div>
+                    <div class="binary-card-desc">Articles sourced from websites and outlets flagged as unreliable,
+                        fabricated, or heavily biased by fact-checking organisations. Includes entirely fabricated
+                        stories, conspiracy theories, heavily misleading political commentary, and hyper-partisan
+                        content designed to deceive.</div>
+                    <div class="binary-card-stats">
+                        <div class="bcs-item">
+                            <div class="bcs-key">Subjects</div>
+                            <div class="bcs-val">6</div>
+                        </div>
+                        <div class="bcs-item">
+                            <div class="bcs-key">Avg Words</div>
+                            <div class="bcs-val">~780</div>
+                        </div>
+                        <div class="bcs-item">
+                            <div class="bcs-key">Dominant Subject</div>
+                            <div class="bcs-val">News</div>
+                        </div>
+                        <div class="bcs-item">
+                            <div class="bcs-key">Style</div>
+                            <div class="bcs-val">Sensational</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="binary-card bc-real">
+                    <div class="binary-card-icon">✓</div>
+                    <div class="binary-card-label">Real News</div>
+                    <div class="binary-card-count">21,417</div>
+                    <div class="binary-card-pct">47.70% of total corpus</div>
+                    <div class="binary-card-desc">Genuine news articles from Reuters, a globally trusted wire service
+                        known for factual, neutral reporting. Articles follow standard journalistic conventions —
+                        inverted pyramid structure, attributed sources, dateline prefixes, and editorial review
+                        processes.</div>
+                    <div class="binary-card-stats">
+                        <div class="bcs-item">
+                            <div class="bcs-key">Subjects</div>
+                            <div class="bcs-val">2</div>
+                        </div>
+                        <div class="bcs-item">
+                            <div class="bcs-key">Avg Words</div>
+                            <div class="bcs-val">~530</div>
+                        </div>
+                        <div class="bcs-item">
+                            <div class="bcs-key">Primary Source</div>
+                            <div class="bcs-val">Reuters</div>
+                        </div>
+                        <div class="bcs-item">
+                            <div class="bcs-key">Style</div>
+                            <div class="bcs-val">Wire-service</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="callout danger">
+                <div class="callout-lbl">Critical Warning — Source-Level Labelling Bias</div>
+                <p>Labels in this dataset are assigned at the <em>source level</em>, not the <em>claim level</em>. Every
+                    article from Reuters is labelled "Real" and every article from flagged outlets is labelled "Fake."
+                    This means a model can achieve near-perfect accuracy by learning stylistic artefacts (e.g. Reuters
+                    dateline format: <code
+                        style="font-family:'Courier Prime',monospace;font-size:11px;">"WASHINGTON (Reuters) –"</code>)
+                    rather than actual veracity signals. <strong>Always strip source-identifying metadata before
+                        training.</strong></p>
+            </div>
+        </div>
+
+        <!-- SECTION 3 -->
+        <div class="section">
+            <div class="sec-header">
+                <div class="sec-num">3</div>
+                <div class="sec-title-wrap">
+                    <span class="sec-sup">Data Schema</span>
+                    <h2 class="sec-title">4-Column CSV Structure</h2>
+                </div>
+            </div>
+
+            <p>The dataset is distributed as two CSV files with headers. The schema is minimal — just four columns — but
+                the <code
+                    style="font-family:'Courier Prime',monospace;font-size:12px;background:var(--pale-blue);padding:1px 5px;">text</code>
+                field contains complete article bodies, often spanning hundreds of words. The <code
+                    style="font-family:'Courier Prime',monospace;font-size:12px;background:var(--pale-blue);padding:1px 5px;">subject</code>
+                field uses different category taxonomies for fake and real news, which is itself a leakage vector.</p>
+
+            <table class="schema-table rev">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Field Name</th>
+                        <th>Type</th>
+                        <th>Description</th>
+                        <th>Example</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>0</td>
+                        <td class="td-field">title</td>
+                        <td><span class="td-type">string</span></td>
+                        <td>Headline of the news article</td>
+                        <td style="font-size:12px;color:var(--muted);">"Trump Launches Fresh Attack on Courts..."</td>
+                    </tr>
+                    <tr>
+                        <td>1</td>
+                        <td class="td-field">text</td>
+                        <td><span class="td-type">string</span> <span class="badge-key">MAIN FEATURE</span></td>
+                        <td>Full article body text (often 200–1500+ words). Real articles often begin with Reuters
+                            byline prefix.</td>
+                        <td style="font-size:12px;color:var(--muted);">"WASHINGTON (Reuters) - President Donald
+                            Trump..."</td>
+                    </tr>
+                    <tr>
+                        <td>2</td>
+                        <td class="td-field">subject</td>
+                        <td><span class="td-type">categorical</span></td>
+                        <td>Topic category. Different taxonomies are used for fake vs. real articles — this itself is a
+                            leakage signal.</td>
+                        <td style="font-family:'Courier Prime',monospace;font-size:11px;">politicsNews</td>
+                    </tr>
+                    <tr>
+                        <td>3</td>
+                        <td class="td-field">date</td>
+                        <td><span class="td-type">string</span></td>
+                        <td>Publication date (format varies: "December 31, 2017" or similar). Some entries are malformed
+                            or missing.</td>
+                        <td style="font-family:'Courier Prime',monospace;font-size:11px;">December 31, 2017</td>
+                    </tr>
+                    <tr>
+                        <td>—</td>
+                        <td class="td-field">label</td>
+                        <td><span class="td-type">binary</span> <span class="badge-key">TARGET</span></td>
+                        <td>Derived from filename. Not present as a column — inferred from which CSV file the row
+                            belongs to (Fake.csv → 0, True.csv → 1).</td>
+                        <td style="font-family:'Courier Prime',monospace;font-size:11px;">0 or 1</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="callout warn">
+                <div class="callout-lbl">Subject Field — Hidden Leakage</div>
+                <p>The <code style="font-family:'Courier Prime',monospace;font-size:11px;">subject</code> column uses
+                    <strong>entirely different categories</strong> for fake and real articles. Real articles use
+                    <em>politicsNews</em> and <em>worldnews</em>. Fake articles use <em>News</em>, <em>politics</em>,
+                    <em>Government News</em>, <em>left-news</em>, <em>US_News</em>, and <em>Middle-east</em>. A model
+                    trained on subject alone would achieve >90% accuracy. <strong>Drop this column or use it only for
+                        analysis, never as a training feature.</strong>
+                </p>
+            </div>
+        </div>
+
+        <!-- SECTION 4 -->
+        <div class="section">
+            <div class="sec-header">
+                <div class="sec-num">4</div>
+                <div class="sec-title-wrap">
+                    <span class="sec-sup">Corpus Analysis</span>
+                    <h2 class="sec-title">Subject, Temporal & Text Distribution</h2>
+                </div>
+            </div>
+
+            <p>Understanding the composition of each class is essential for identifying leakage vectors and designing
+                fair experiments. The fake and real partitions differ not just in content but in <em>structural
+                    characteristics</em> — article length, subject taxonomy, date distribution, and writing style.</p>
+
+            <div class="dist-visual rev">
+                <div class="dv-header">Subject Distribution — Fake Articles (23,481)</div>
+                <div class="dv-body">
+                    <div class="dv-row">
+                        <div class="dv-name">News</div>
+                        <div class="dv-track">
+                            <div class="dv-fill" style="--w:100%;background:var(--verdict-fake)"><span
+                                    class="dv-fill-label">9,050 articles</span></div>
+                        </div>
+                        <div class="dv-count" style="color:var(--verdict-fake)">9,050</div>
+                        <div class="dv-pct">38.5%</div>
+                    </div>
+                    <div class="dv-row">
+                        <div class="dv-name">politics</div>
+                        <div class="dv-track">
+                            <div class="dv-fill" style="--w:73%;background:var(--verdict-fake)"><span
+                                    class="dv-fill-label">6,841 articles</span></div>
+                        </div>
+                        <div class="dv-count" style="color:var(--verdict-fake)">6,841</div>
+                        <div class="dv-pct">29.1%</div>
+                    </div>
+                    <div class="dv-row">
+                        <div class="dv-name">Government News</div>
+                        <div class="dv-track">
+                            <div class="dv-fill" style="--w:19%;background:var(--verdict-fake)"><span
+                                    class="dv-fill-label">1,570</span></div>
+                        </div>
+                        <div class="dv-count" style="color:var(--verdict-fake)">1,570</div>
+                        <div class="dv-pct">6.7%</div>
+                    </div>
+                    <div class="dv-row">
+                        <div class="dv-name">left-news</div>
+                        <div class="dv-track">
+                            <div class="dv-fill" style="--w:48%;background:var(--accent-coral)"><span
+                                    class="dv-fill-label">4,459</span></div>
+                        </div>
+                        <div class="dv-count" style="color:var(--accent-coral)">4,459</div>
+                        <div class="dv-pct">19.0%</div>
+                    </div>
+                    <div class="dv-row">
+                        <div class="dv-name">US_News</div>
+                        <div class="dv-track">
+                            <div class="dv-fill" style="--w:8%;background:var(--accent-amber)"><span
+                                    class="dv-fill-label">783</span></div>
+                        </div>
+                        <div class="dv-count" style="color:var(--accent-amber)">783</div>
+                        <div class="dv-pct">3.3%</div>
+                    </div>
+                    <div class="dv-row">
+                        <div class="dv-name">Middle-east</div>
+                        <div class="dv-track">
+                            <div class="dv-fill" style="--w:8.5%;background:var(--accent-amber)"><span
+                                    class="dv-fill-label">778</span></div>
+                        </div>
+                        <div class="dv-count" style="color:var(--accent-amber)">778</div>
+                        <div class="dv-pct">3.3%</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="dist-visual rev">
+                <div class="dv-header">Subject Distribution — Real Articles (21,417)</div>
+                <div class="dv-body">
+                    <div class="dv-row">
+                        <div class="dv-name">politicsNews</div>
+                        <div class="dv-track">
+                            <div class="dv-fill" style="--w:100%;background:var(--verdict-real)"><span
+                                    class="dv-fill-label">11,272 articles</span></div>
+                        </div>
+                        <div class="dv-count" style="color:var(--verdict-real)">11,272</div>
+                        <div class="dv-pct">52.6%</div>
+                    </div>
+                    <div class="dv-row">
+                        <div class="dv-name">worldnews</div>
+                        <div class="dv-track">
+                            <div class="dv-fill" style="--w:90%;background:var(--verdict-real-light)"><span
+                                    class="dv-fill-label">10,145 articles</span></div>
+                        </div>
+                        <div class="dv-count" style="color:var(--verdict-real)">10,145</div>
+                        <div class="dv-pct">47.4%</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="text-analysis-grid stag">
+                <div class="ta-card">
+                    <div class="ta-label">Fake — Avg Word Count</div>
+                    <div class="ta-val">~780</div>
+                    <div class="ta-sub">words per article</div>
+                </div>
+                <div class="ta-card">
+                    <div class="ta-label">Real — Avg Word Count</div>
+                    <div class="ta-val">~530</div>
+                    <div class="ta-sub">words per article</div>
+                </div>
+                <div class="ta-card">
+                    <div class="ta-label">Length Ratio</div>
+                    <div class="ta-val">1.47×</div>
+                    <div class="ta-sub">fake articles are longer</div>
+                </div>
+                <div class="ta-card">
+                    <div class="ta-label">Fake — Unique Words</div>
+                    <div class="ta-val">~340K</div>
+                    <div class="ta-sub">vocabulary tokens</div>
+                </div>
+                <div class="ta-card">
+                    <div class="ta-label">Real — Unique Words</div>
+                    <div class="ta-val">~210K</div>
+                    <div class="ta-sub">vocabulary tokens</div>
+                </div>
+                <div class="ta-card">
+                    <div class="ta-label">Total Corpus Size</div>
+                    <div class="ta-val">~29M</div>
+                    <div class="ta-sub">words combined</div>
+                </div>
+            </div>
+
+            <div class="split-view rev">
+                <div class="sv-panel">
+                    <div class="sv-panel-label">Most Common Words in Fake Articles</div>
+                    <div class="speaker-bar">
+                        <div class="spk-name">trump</div>
+                        <div class="spk-track">
+                            <div class="spk-fill" style="--w:100%;background:var(--verdict-fake)"></div>
+                        </div>
+                        <div class="spk-count">~48,200</div>
+                    </div>
+                    <div class="speaker-bar">
+                        <div class="spk-name">said</div>
+                        <div class="spk-track">
+                            <div class="spk-fill" style="--w:72%;background:var(--verdict-fake)"></div>
+                        </div>
+                        <div class="spk-count">~34,700</div>
+                    </div>
+                    <div class="speaker-bar">
+                        <div class="spk-name">people</div>
+                        <div class="spk-track">
+                            <div class="spk-fill" style="--w:44%;background:var(--verdict-fake)"></div>
+                        </div>
+                        <div class="spk-count">~21,200</div>
+                    </div>
+                    <div class="speaker-bar">
+                        <div class="spk-name">president</div>
+                        <div class="spk-track">
+                            <div class="spk-fill" style="--w:41%;background:var(--verdict-fake)"></div>
+                        </div>
+                        <div class="spk-count">~19,800</div>
+                    </div>
+                    <div class="speaker-bar">
+                        <div class="spk-name">obama</div>
+                        <div class="spk-track">
+                            <div class="spk-fill" style="--w:33%;background:var(--verdict-fake)"></div>
+                        </div>
+                        <div class="spk-count">~15,900</div>
+                    </div>
+                    <div class="speaker-bar">
+                        <div class="spk-name">clinton</div>
+                        <div class="spk-track">
+                            <div class="spk-fill" style="--w:30%;background:var(--verdict-fake)"></div>
+                        </div>
+                        <div class="spk-count">~14,400</div>
+                    </div>
+                    <div class="speaker-bar">
+                        <div class="spk-name">government</div>
+                        <div class="spk-track">
+                            <div class="spk-fill" style="--w:24%;background:var(--verdict-fake)"></div>
+                        </div>
+                        <div class="spk-count">~11,600</div>
+                    </div>
+                    <div
+                        style="font-family:'Courier Prime',monospace;font-size:10px;color:var(--muted);margin-top:1rem;">
+                        After removing standard English stopwords. Note the high frequency of politically charged proper
+                        nouns.</div>
+                </div>
+                <div class="sv-panel">
+                    <div class="sv-panel-label">Most Common Words in Real Articles</div>
+                    <div class="speaker-bar">
+                        <div class="spk-name">said</div>
+                        <div class="spk-track">
+                            <div class="spk-fill" style="--w:100%;background:var(--verdict-real)"></div>
+                        </div>
+                        <div class="spk-count">~61,400</div>
+                    </div>
+                    <div class="speaker-bar">
+                        <div class="spk-name">trump</div>
+                        <div class="spk-track">
+                            <div class="spk-fill" style="--w:54%;background:var(--verdict-real)"></div>
+                        </div>
+                        <div class="spk-count">~33,100</div>
+                    </div>
+                    <div class="speaker-bar">
+                        <div class="spk-name">reuters</div>
+                        <div class="spk-track">
+                            <div class="spk-fill" style="--w:38%;background:var(--verdict-real)"></div>
+                        </div>
+                        <div class="spk-count">~23,300</div>
+                    </div>
+                    <div class="speaker-bar">
+                        <div class="spk-name">united</div>
+                        <div class="spk-track">
+                            <div class="spk-fill" style="--w:24%;background:var(--verdict-real)"></div>
+                        </div>
+                        <div class="spk-count">~14,700</div>
+                    </div>
+                    <div class="speaker-bar">
+                        <div class="spk-name">states</div>
+                        <div class="spk-track">
+                            <div class="spk-fill" style="--w:22%;background:var(--verdict-real)"></div>
+                        </div>
+                        <div class="spk-count">~13,500</div>
+                    </div>
+                    <div class="speaker-bar">
+                        <div class="spk-name">house</div>
+                        <div class="spk-track">
+                            <div class="spk-fill" style="--w:20%;background:var(--verdict-real)"></div>
+                        </div>
+                        <div class="spk-count">~12,300</div>
+                    </div>
+                    <div class="speaker-bar">
+                        <div class="spk-name">president</div>
+                        <div class="spk-track">
+                            <div class="spk-fill" style="--w:19%;background:var(--verdict-real)"></div>
+                        </div>
+                        <div class="spk-count">~11,700</div>
+                    </div>
+                    <div
+                        style="font-family:'Courier Prime',monospace;font-size:10px;color:var(--muted);margin-top:1rem;">
+                        ⚠ "reuters" appearing as top-3 in real articles highlights the byline leakage problem. Remove
+                        before training.</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SECTION 5 -->
+        <div class="section">
+            <div class="sec-header">
+                <div class="sec-num">5</div>
+                <div class="sec-title-wrap">
+                    <span class="sec-sup">Critical Issues</span>
+                    <h2 class="sec-title">Data Leakage & The Reuters Byline Problem</h2>
+                </div>
+            </div>
+
+            <p>The single most important methodological concern with this dataset is <strong>data leakage through
+                    source-identifying artefacts</strong>. Nearly every "Real" article begins with a Reuters-format
+                dateline — <code
+                    style="font-family:'Courier Prime',monospace;font-size:12px;background:rgba(168,40,40,0.06);padding:1px 5px;">CITY_NAME (Reuters) -</code>
+                — that instantly reveals its class membership. A trivial regex achieves 99%+ accuracy, rendering any
+                model that does not strip this prefix useless as a genuine fake news detector.</p>
+
+            <div class="callout danger">
+                <div class="callout-lbl">The Reuters Byline — Mandatory Preprocessing</div>
+                <p>Approximately <strong>96% of real articles</strong> contain the substring <code
+                        style="font-family:'Courier Prime',monospace;font-size:11px;">"(Reuters)"</code> in their first
+                    50 characters. <strong>Zero fake articles</strong> contain this string. A single-feature logistic
+                    regression on the boolean <code
+                        style="font-family:'Courier Prime',monospace;font-size:11px;">has_reuters = "(Reuters)" in text[:50]</code>
+                    yields ~96% accuracy. Any reported accuracy above ~95% on this dataset without byline stripping is
+                    measuring source detection, not fake news detection.</p>
+            </div>
+
+            <div class="pipeline stag">
+                <div class="pipe-step">
+                    <div class="ps-num">⚠1</div>
+                    <div class="ps-title">Reuters Dateline Leakage</div>
+                    <div class="ps-desc">Real articles start with "CITY (Reuters) - " prefix. Strip this with regex
+                        <code
+                            style="font-family:'Courier Prime',monospace;font-size:11px;">r'^[A-Z\s]+(Reuters)\s*[-–—]\s*'</code>
+                        before any text processing. Also remove trailing Reuters boilerplate.
+                    </div>
+                </div>
+                <div class="pipe-step">
+                    <div class="ps-num">⚠2</div>
+                    <div class="ps-title">Subject Column Leakage</div>
+                    <div class="ps-desc">Fake and real articles use completely disjoint subject taxonomies. The subject
+                        field alone gives >90% accuracy. Never use it as a training feature — analyse it for
+                        understanding, but drop it for modelling.</div>
+                </div>
+                <div class="pipe-step">
+                    <div class="ps-num">⚠3</div>
+                    <div class="ps-title">Source Homogeneity</div>
+                    <div class="ps-desc">All real articles come from one source (Reuters). Models learn Reuters house
+                        style rather than "truth." Evaluation on non-Reuters real articles will show severe performance
+                        drops. This is a single-source benchmark, not a general detector.</div>
+                </div>
+                <div class="pipe-step">
+                    <div class="ps-num">⚠4</div>
+                    <div class="ps-title">No Pre-Defined Split</div>
+                    <div class="ps-desc">Unlike LIAR, this dataset has no official train/val/test split. Always use
+                        stratified splitting and report your split ratio. Random splitting risks temporal leakage —
+                        consider chronological splits for realism.</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SECTION 6 -->
+        <div class="section">
+            <div class="sec-header">
+                <div class="sec-num">6</div>
+                <div class="sec-title-wrap">
+                    <span class="sec-sup">Implementation Guide</span>
+                    <h2 class="sec-title">Loading, Cleaning & Modelling Pipeline</h2>
+                </div>
+            </div>
+
+            <p>The pipeline below demonstrates proper loading, the critical byline-stripping step, and both a classical
+                ML baseline (TF-IDF + Logistic Regression) and a transformer fine-tuning approach. Note the emphasis on
+                cleaning <em>before</em> any feature extraction — the order matters.</p>
+
+            <div class="pipeline stag">
+                <div class="pipe-step">
+                    <div class="ps-num">01</div>
+                    <div class="ps-title">Load & Label</div>
+                    <div class="ps-desc">Read both CSVs. Add a <code
+                            style="font-family:'Courier Prime',monospace;font-size:11px;">label</code> column (Fake.csv
+                        → 0, True.csv → 1). Concatenate into a single DataFrame. Drop any rows with null text.</div>
+                </div>
+                <div class="pipe-step">
+                    <div class="ps-num">02</div>
+                    <div class="ps-title">Strip Source Artefacts</div>
+                    <div class="ps-desc">Remove Reuters dateline prefix via regex. Remove trailing boilerplate.
+                        Optionally strip all named entity references to test content-only signal strength.</div>
+                </div>
+                <div class="pipe-step">
+                    <div class="ps-num">03</div>
+                    <div class="ps-title">Stratified Split</div>
+                    <div class="ps-desc">80/10/10 train/val/test with stratification on label. For temporal experiments,
+                        parse dates and split chronologically. Always report your exact split method.</div>
+                </div>
+                <div class="pipe-step">
+                    <div class="ps-num">04</div>
+                    <div class="ps-title">Model Training</div>
+                    <div class="ps-desc">Baseline: TF-IDF (max 50K features, 1-2 grams) → LogisticRegression(C=1.0).
+                        Advanced: BERT/DistilBERT fine-tuning with truncation at 512 tokens. Report accuracy, F1,
+                        precision, recall.</div>
+                </div>
+            </div>
+
+            <div class="code-block">
+                <pre><span class="cc"># Fake & Real News Dataset — Complete Loading & Cleaning Pipeline</span>
+<span class="ck">import</span> pandas <span class="ck">as</span> pd
+<span class="ck">import</span> numpy <span class="ck">as</span> np
+<span class="ck">import</span> re
+<span class="ck">from</span> sklearn.model_selection <span class="ck">import</span> train_test_split
+
+<span class="cc"># ── Step 1: Load both CSV files and assign labels ──</span>
+fake = pd.read_csv(<span class="cs">"Fake.csv"</span>)
+real = pd.read_csv(<span class="cs">"True.csv"</span>)
+
+fake[<span class="cs">"label"</span>] = <span class="cn">0</span>   <span class="cc"># Fake → 0</span>
+real[<span class="cs">"label"</span>] = <span class="cn">1</span>   <span class="cc"># Real → 1</span>
+
+df = pd.concat([fake, real], ignore_index=<span class="ck">True</span>)
+df = df.dropna(subset=[<span class="cs">"text"</span>])
+df = df.sample(frac=<span class="cn">1</span>, random_state=<span class="cn">42</span>).reset_index(drop=<span class="ck">True</span>)
+
+print(f<span class="cs">"Total articles: {len(df)}"</span>)
+print(df[<span class="cs">"label"</span>].value_counts())
+
+<span class="cc"># ── Step 2: CRITICAL — Strip Reuters dateline leakage ──</span>
+<span class="ck">def</span> <span class="cf">clean_text</span>(text):
+    <span class="cc"># Remove Reuters dateline: "CITY (Reuters) - "</span>
+    text = re.sub(r<span class="cs">'^[A-Z\s,.]{{0,60}}\(Reuters\)\s*[-–—]\s*'</span>, <span class="cs">''</span>, text)
+    <span class="cc"># Remove trailing Reuters boilerplate</span>
+    text = re.sub(r<span class="cs">'\s*\(Reporting by.*$'</span>, <span class="cs">''</span>, text, flags=re.DOTALL)
+    text = re.sub(r<span class="cs">'\s*\(Additional reporting.*$'</span>, <span class="cs">''</span>, text, flags=re.DOTALL)
+    text = re.sub(r<span class="cs">'\s*\(Editing by.*$'</span>, <span class="cs">''</span>, text, flags=re.DOTALL)
+    <span class="ck">return</span> text.strip()
+
+df[<span class="cs">"text_clean"</span>] = df[<span class="cs">"text"</span>].apply(clean_text)
+
+<span class="cc"># Verify leakage is removed</span>
+reuters_check = df[df[<span class="cs">"text_clean"</span>].str.contains(<span class="cs">"(Reuters)"</span>, regex=<span class="ck">False</span>)]
+print(f<span class="cs">"Residual Reuters mentions: {len(reuters_check)}"</span>)
+
+<span class="cc"># ── Step 3: Stratified train/val/test split ──</span>
+train, temp = train_test_split(df, test_size=<span class="cn">0.2</span>, stratify=df[<span class="cs">"label"</span>], random_state=<span class="cn">42</span>)
+val, test   = train_test_split(temp, test_size=<span class="cn">0.5</span>, stratify=temp[<span class="cs">"label"</span>], random_state=<span class="cn">42</span>)
+
+print(f<span class="cs">"Train: {len(train)} | Val: {len(val)} | Test: {len(test)}"</span>)
+<span class="cc"># → Train: 35,918 | Val: 4,490 | Test: 4,490</span></pre>
+            </div>
+
+            <div class="code-block">
+                <pre><span class="cc"># TF-IDF + Logistic Regression Baseline (after cleaning)</span>
+<span class="ck">from</span> sklearn.feature_extraction.text <span class="ck">import</span> TfidfVectorizer
+<span class="ck">from</span> sklearn.linear_model <span class="ck">import</span> LogisticRegression
+<span class="ck">from</span> sklearn.metrics <span class="ck">import</span> classification_report, accuracy_score
+
+tfidf = TfidfVectorizer(
+    max_features=<span class="cn">50000</span>,
+    ngram_range=(<span class="cn">1</span>, <span class="cn">2</span>),
+    min_df=<span class="cn">3</span>,
+    max_df=<span class="cn">0.95</span>,
+    sublinear_tf=<span class="ck">True</span>
+)
+
+X_train = tfidf.fit_transform(train[<span class="cs">"text_clean"</span>])
+X_val   = tfidf.transform(val[<span class="cs">"text_clean"</span>])
+X_test  = tfidf.transform(test[<span class="cs">"text_clean"</span>])
+
+clf = LogisticRegression(C=<span class="cn">1.0</span>, max_iter=<span class="cn">1000</span>, solver=<span class="cs">"lbfgs"</span>)
+clf.fit(X_train, train[<span class="cs">"label"</span>])
+
+y_pred = clf.predict(X_test)
+print(f<span class="cs">"Test Accuracy (cleaned): {accuracy_score(test['label'], y_pred):.4f}"</span>)
+print(classification_report(test[<span class="cs">"label"</span>], y_pred,
+      target_names=[<span class="cs">"Fake"</span>, <span class="cs">"Real"</span>]))</pre>
+            </div>
+
+            <div class="code-block">
+                <pre><span class="cc"># BERT / DistilBERT Fine-Tuning Pipeline</span>
+<span class="ck">from</span> transformers <span class="ck">import</span> AutoTokenizer, AutoModelForSequenceClassification
+<span class="ck">from</span> transformers <span class="ck">import</span> Trainer, TrainingArguments
+<span class="ck">from</span> datasets <span class="ck">import</span> Dataset
+
+MODEL = <span class="cs">"distilbert-base-uncased"</span>
+tokenizer = AutoTokenizer.from_pretrained(MODEL)
+
+<span class="ck">def</span> <span class="cf">tokenise</span>(batch):
+    <span class="ck">return</span> tokenizer(
+        batch[<span class="cs">"text_clean"</span>],
+        truncation=<span class="ck">True</span>,
+        padding=<span class="cs">"max_length"</span>,
+        max_length=<span class="cn">512</span>
+    )
+
+<span class="cc"># Convert to HuggingFace Datasets</span>
+hf_train = Dataset.from_pandas(train[[<span class="cs">"text_clean"</span>, <span class="cs">"label"</span>]].rename(
+    columns={<span class="cs">"label"</span>: <span class="cs">"labels"</span>}))
+hf_val   = Dataset.from_pandas(val[[<span class="cs">"text_clean"</span>, <span class="cs">"label"</span>]].rename(
+    columns={<span class="cs">"label"</span>: <span class="cs">"labels"</span>}))
+hf_test  = Dataset.from_pandas(test[[<span class="cs">"text_clean"</span>, <span class="cs">"label"</span>]].rename(
+    columns={<span class="cs">"label"</span>: <span class="cs">"labels"</span>}))
+
+hf_train = hf_train.map(tokenise, batched=<span class="ck">True</span>)
+hf_val   = hf_val.map(tokenise, batched=<span class="ck">True</span>)
+hf_test  = hf_test.map(tokenise, batched=<span class="ck">True</span>)
+
+model = AutoModelForSequenceClassification.from_pretrained(MODEL, num_labels=<span class="cn">2</span>)
+
+args = TrainingArguments(
+    output_dir=<span class="cs">"./fnd-distilbert"</span>,
+    num_train_epochs=<span class="cn">3</span>,
+    per_device_train_batch_size=<span class="cn">16</span>,
+    per_device_eval_batch_size=<span class="cn">32</span>,
+    learning_rate=<span class="cn">2e-5</span>,
+    evaluation_strategy=<span class="cs">"epoch"</span>,
+    save_strategy=<span class="cs">"epoch"</span>,
+    load_best_model_at_end=<span class="ck">True</span>,
+    metric_for_best_model=<span class="cs">"eval_loss"</span>,
+    warmup_ratio=<span class="cn">0.06</span>,
+    weight_decay=<span class="cn">0.01</span>,
+    fp16=<span class="ck">True</span>,
+)
+
+trainer = Trainer(
+    model=model, args=args,
+    train_dataset=hf_train, eval_dataset=hf_val,
+)
+trainer.train()
+results = trainer.evaluate(hf_test)
+print(results)</pre>
+            </div>
+        </div>
+
+        <!-- SECTION 7 -->
+        <div class="section">
+            <div class="sec-header">
+                <div class="sec-num">7</div>
+                <div class="sec-title-wrap">
+                    <span class="sec-sup">Published Results</span>
+                    <h2 class="sec-title">Model Benchmark Landscape</h2>
+                </div>
+            </div>
+
+            <p>Due to the dataset's inherent leakage, reported accuracies are exceptionally high — often above 95%. The
+                table below distinguishes between results <strong>with</strong> and <strong>without</strong> proper data
+                cleaning. Cleaned results (Reuters byline stripped, subject column dropped) represent genuine
+                text-understanding performance; uncleaned results are inflated by artefact detection.</p>
+
+            <table class="bench-table rev">
+                <thead>
+                    <tr>
+                        <th>Model</th>
+                        <th>Cleaning Applied</th>
+                        <th>Features</th>
+                        <th>Test Accuracy</th>
+                        <th>Notes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Majority baseline</td>
+                        <td>N/A</td>
+                        <td>None</td>
+                        <td>52.3%</td>
+                        <td>Always predict Fake (majority class)</td>
+                    </tr>
+                    <tr>
+                        <td style="color:var(--muted);font-style:italic;">Reuters substring check</td>
+                        <td style="color:var(--verdict-fake);font-weight:700;">None ⚠</td>
+                        <td>Single regex feature</td>
+                        <td style="color:var(--verdict-fake);">~96%</td>
+                        <td style="color:var(--muted);">Proves leakage — not a real model</td>
+                    </tr>
+                    <tr>
+                        <td>TF-IDF + Logistic Regression</td>
+                        <td style="color:var(--verdict-fake);">No cleaning</td>
+                        <td>50K TF-IDF features</td>
+                        <td>98.6%</td>
+                        <td>Inflated by source artefacts</td>
+                    </tr>
+                    <tr>
+                        <td>TF-IDF + Logistic Regression</td>
+                        <td style="color:var(--verdict-real);font-weight:700;">✓ Cleaned</td>
+                        <td>50K TF-IDF features</td>
+                        <td>93–95%</td>
+                        <td>Genuine text signal after byline strip</td>
+                    </tr>
+                    <tr>
+                        <td>TF-IDF + SVM</td>
+                        <td style="color:var(--verdict-real);font-weight:700;">✓ Cleaned</td>
+                        <td>Unigrams + Bigrams</td>
+                        <td>94–96%</td>
+                        <td>Linear SVM with tuned C</td>
+                    </tr>
+                    <tr>
+                        <td>TF-IDF + Random Forest</td>
+                        <td style="color:var(--verdict-real);font-weight:700;">✓ Cleaned</td>
+                        <td>50K features, 200 trees</td>
+                        <td>91–93%</td>
+                        <td>Ensemble baseline</td>
+                    </tr>
+                    <tr>
+                        <td>BiLSTM + GloVe</td>
+                        <td style="color:var(--verdict-real);font-weight:700;">✓ Cleaned</td>
+                        <td>300d GloVe embeddings</td>
+                        <td>94–96%</td>
+                        <td>Bidirectional LSTM encoder</td>
+                    </tr>
+                    <tr>
+                        <td>BERT-base (uncleaned)</td>
+                        <td style="color:var(--verdict-fake);">No cleaning</td>
+                        <td>Fine-tuned, 512 tokens</td>
+                        <td>99.4%</td>
+                        <td>Almost certainly memorising Reuters prefix</td>
+                    </tr>
+                    <tr>
+                        <td>DistilBERT (cleaned)</td>
+                        <td style="color:var(--verdict-real);font-weight:700;">✓ Cleaned</td>
+                        <td>Fine-tuned, 512 tokens</td>
+                        <td>96–97%</td>
+                        <td>Strong baseline with proper cleaning</td>
+                    </tr>
+                    <tr>
+                        <td>RoBERTa-base (cleaned)</td>
+                        <td style="color:var(--verdict-real);font-weight:700;">✓ Cleaned</td>
+                        <td>Fine-tuned, 512 tokens</td>
+                        <td><span class="best-score">97–98%</span></td>
+                        <td>Best single-model with proper cleaning</td>
+                    </tr>
+                    <tr>
+                        <td>Title-only DistilBERT</td>
+                        <td style="color:var(--verdict-real);font-weight:700;">✓ Cleaned</td>
+                        <td>Headlines only</td>
+                        <td>92–94%</td>
+                        <td>Headline stylistic difference still strong</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="callout info">
+                <div class="callout-lbl">Interpreting Benchmark Results</div>
+                <p>The suspiciously high accuracy (>95%) even after cleaning suggests that <strong>stylistic
+                        differences</strong> between Reuters wire copy and fabricated content remain a dominant signal.
+                    This dataset benchmarks <em>source-style classification</em> more than <em>factual veracity
+                        detection</em>. For genuine fake news detection research, pair this dataset with cross-source
+                    evaluation — train here, test on articles from a completely different source distribution.</p>
+            </div>
+        </div>
+
+        <!-- SECTION 8 -->
+        <div class="section">
+            <div class="sec-header">
+                <div class="sec-num">8</div>
+                <div class="sec-title-wrap">
+                    <span class="sec-sup">Dataset Comparison</span>
+                    <h2 class="sec-title">Fake & Real News vs. Other Benchmarks</h2>
+                </div>
+            </div>
+
+            <table class="compare-table rev">
+                <thead>
+                    <tr>
+                        <th>Feature</th>
+                        <th>Fake & Real News (This)</th>
+                        <th>LIAR (Wang 2017)</th>
+                        <th>FakeNewsNet</th>
+                        <th>ISOT Dataset</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td style="font-weight:700;">Size</td>
+                        <td><strong>44,898</strong> articles</td>
+                        <td>12,836 statements</td>
+                        <td>~23,000 articles</td>
+                        <td>~44,000 articles</td>
+                    </tr>
+                    <tr>
+                        <td style="font-weight:700;">Label Type</td>
+                        <td>Binary (fake/real)</td>
+                        <td>6-class ordinal</td>
+                        <td>Binary</td>
+                        <td>Binary</td>
+                    </tr>
+                    <tr>
+                        <td style="font-weight:700;">Text Length</td>
+                        <td>Full articles</td>
+                        <td>Single sentences</td>
+                        <td>Full articles</td>
+                        <td>Full articles</td>
+                    </tr>
+                    <tr>
+                        <td style="font-weight:700;">Speaker Metadata</td>
+                        <td class="compare-x">✕ None</td>
+                        <td class="compare-check">✓ Rich (14 fields)</td>
+                        <td class="compare-check">✓ Social context</td>
+                        <td class="compare-x">✕ None</td>
+                    </tr>
+                    <tr>
+                        <td style="font-weight:700;">Source Diversity</td>
+                        <td class="compare-x">✕ Reuters only (real)</td>
+                        <td class="compare-check">✓ PolitiFact</td>
+                        <td class="compare-check">✓ Multiple</td>
+                        <td class="compare-x">✕ Reuters only (real)</td>
+                    </tr>
+                    <tr>
+                        <td style="font-weight:700;">Pre-split</td>
+                        <td class="compare-x">✕ No</td>
+                        <td class="compare-check">✓ Train/Val/Test</td>
+                        <td class="compare-check">✓ Yes</td>
+                        <td class="compare-x">✕ No</td>
+                    </tr>
+                    <tr>
+                        <td style="font-weight:700;">Leakage Risk</td>
+                        <td style="color:var(--verdict-fake);font-weight:700;">HIGH ⚠</td>
+                        <td style="color:var(--accent-amber);">Moderate (credit history)</td>
+                        <td style="color:var(--verdict-real);">Low</td>
+                        <td style="color:var(--verdict-fake);font-weight:700;">HIGH ⚠</td>
+                    </tr>
+                    <tr>
+                        <td style="font-weight:700;">Best Use Case</td>
+                        <td>Rapid prototyping, NLP education</td>
+                        <td>Multi-class veracity research</td>
+                        <td>Social context modelling</td>
+                        <td>Binary benchmark comparison</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- SECTION 9 -->
+        <div class="section">
+            <div class="sec-header">
+                <div class="sec-num">9</div>
+                <div class="sec-title-wrap">
+                    <span class="sec-sup">Limitations & Ethics</span>
+                    <h2 class="sec-title">What This Dataset Cannot Tell You</h2>
+                </div>
+            </div>
+
+            <div class="pipeline stag">
+                <div class="pipe-step">
+                    <div class="ps-num">!</div>
+                    <div class="ps-title">Single-Source Real News Bias</div>
+                    <div class="ps-desc">All real articles come from Reuters. Models learn Reuters style, not "truth."
+                        Legitimate journalism from the NYT, BBC, AP, or local papers may be misclassified as fake
+                        because it doesn't match the Reuters template. Never deploy a model trained solely on this data.
+                    </div>
+                </div>
+                <div class="pipe-step">
+                    <div class="ps-num">!</div>
+                    <div class="ps-title">Temporal & Political Bias</div>
+                    <div class="ps-desc">The dataset covers ~2015–2018, a period dominated by US presidential politics
+                        (Trump, Clinton, Obama). Models will underperform on non-US political content, non-political
+                        news, or post-2018 events. Treat this as a closed temporal benchmark.</div>
+                </div>
+                <div class="pipe-step">
+                    <div class="ps-num">!</div>
+                    <div class="ps-title">No Claim-Level Verification</div>
+                    <div class="ps-desc">Labels are source-level, not claim-level. A Reuters article containing an error
+                        is still labelled "Real." A fabricated article accidentally containing a true claim is still
+                        "Fake." This conflates source reliability with factual accuracy — a critical distinction in
+                        real-world fact-checking.</div>
+                </div>
+                <div class="pipe-step">
+                    <div class="ps-num">!</div>
+                    <div class="ps-title">Ethical Deployment Risk</div>
+                    <div class="ps-desc">Deploying a classifier trained on this dataset in production would mislabel
+                        legitimate independent journalism as "fake" and potentially pass AI-generated content that
+                        mimics Reuters style as "real." This dataset is for research and education only — never for
+                        production content moderation.</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SECTION 10 -->
+        <div class="section">
+            <div class="sec-header">
+                <div class="sec-num">10</div>
+                <div class="sec-title-wrap">
+                    <span class="sec-sup">Concrete Examples</span>
+                    <h2 class="sec-title">Sample Records from the Dataset</h2>
+                </div>
+            </div>
+
+            <p>The examples below show representative articles from each class. Notice the structural differences — real
+                articles lead with a Reuters dateline and use formal wire-service tone, while fake articles use
+                sensational language and lack source attribution. Use the tabs to filter by class.</p>
+
+            <div class="filter-tabs" id="filter-tabs">
+                <div class="ftab active" data-filter="all">All (6)</div>
+                <div class="ftab" data-filter="fake">Fake (3)</div>
+                <div class="ftab" data-filter="real">Real (3)</div>
+            </div>
+
+            <div id="sample-cards">
+
+                <div class="record-card rev" data-label="fake">
+                    <div class="rc-verdict-bar" style="background:var(--verdict-fake)"></div>
+                    <div class="rc-top">
+                        <div>
+                            <div class="rc-id">Source: Fake.csv · Row #1,247</div>
+                            <div class="rc-title-text">BREAKING: Obama Just Made A SICK Move Against Trump — This Is
+                                TREASON</div>
+                            <div class="rc-body-text">Barack Obama has been caught red-handed trying to undermine the
+                                Trump administration from behind the scenes. According to multiple sources, Obama has
+                                been secretly meeting with foreign leaders and organizing resistance efforts from his
+                                compound in Washington D.C. This is unprecedented in American history and constitutes a
+                                direct threat to our democracy...</div>
+                        </div>
+                        <div class="rc-verdict-chip vc-fake-chip">● FAKE</div>
+                    </div>
+                    <div class="rc-meta-row">
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Subject</div>
+                            <div class="rc-meta-val">politics</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Date</div>
+                            <div class="rc-meta-val">February 15, 2017</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Word Count</div>
+                            <div class="rc-meta-val">~820 words</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Reuters Byline</div>
+                            <div class="rc-meta-val" style="color:var(--verdict-fake)">✕ Absent</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="record-card rev" data-label="real">
+                    <div class="rc-verdict-bar" style="background:var(--verdict-real)"></div>
+                    <div class="rc-top">
+                        <div>
+                            <div class="rc-id">Source: True.csv · Row #3,891</div>
+                            <div class="rc-title-text">Trump to unveil infrastructure plan in State of the Union address
+                            </div>
+                            <div class="rc-body-text">WASHINGTON (Reuters) - President Donald Trump will use his State
+                                of the Union address on Tuesday to unveil a plan to generate at least $1.5 trillion in
+                                infrastructure spending through a combination of federal, state and local funds and
+                                private investment, senior administration officials said on Sunday. The plan will seek
+                                $200 billion in federal funds...</div>
+                        </div>
+                        <div class="rc-verdict-chip vc-real-chip">● REAL</div>
+                    </div>
+                    <div class="rc-meta-row">
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Subject</div>
+                            <div class="rc-meta-val">politicsNews</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Date</div>
+                            <div class="rc-meta-val">January 28, 2018</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Word Count</div>
+                            <div class="rc-meta-val">~480 words</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Reuters Byline</div>
+                            <div class="rc-meta-val" style="color:var(--verdict-real)">✓ Present</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="record-card rev" data-label="fake">
+                    <div class="rc-verdict-bar" style="background:var(--verdict-fake)"></div>
+                    <div class="rc-top">
+                        <div>
+                            <div class="rc-id">Source: Fake.csv · Row #8,412</div>
+                            <div class="rc-title-text">EXPOSED: What Hillary Clinton Did With Haiti Earthquake Funds
+                                Will Make You SICK</div>
+                            <div class="rc-body-text">The Clinton Foundation has been exposed for the massive fraud that
+                                it is. Documents obtained exclusively by our investigative team reveal that billions of
+                                dollars intended for Haiti earthquake relief were diverted into personal accounts and
+                                used to fund lavish lifestyles. The mainstream media refuses to cover this bombshell
+                                story...</div>
+                        </div>
+                        <div class="rc-verdict-chip vc-fake-chip">● FAKE</div>
+                    </div>
+                    <div class="rc-meta-row">
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Subject</div>
+                            <div class="rc-meta-val">News</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Date</div>
+                            <div class="rc-meta-val">October 22, 2016</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Word Count</div>
+                            <div class="rc-meta-val">~1,050 words</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Reuters Byline</div>
+                            <div class="rc-meta-val" style="color:var(--verdict-fake)">✕ Absent</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="record-card rev" data-label="real">
+                    <div class="rc-verdict-bar" style="background:var(--verdict-real)"></div>
+                    <div class="rc-top">
+                        <div>
+                            <div class="rc-id">Source: True.csv · Row #15,220</div>
+                            <div class="rc-title-text">North Korea says sanctions approach utilised by U.S. is a dead
+                                end</div>
+                            <div class="rc-body-text">SEOUL (Reuters) - North Korea said on Monday that the United
+                                States' approach of relying on sanctions and pressure to deal with Pyongyang was a "dead
+                                end," after Washington pushed for a new round of U.N. Security Council sanctions
+                                following the North's latest missile launch...</div>
+                        </div>
+                        <div class="rc-verdict-chip vc-real-chip">● REAL</div>
+                    </div>
+                    <div class="rc-meta-row">
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Subject</div>
+                            <div class="rc-meta-val">worldnews</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Date</div>
+                            <div class="rc-meta-val">September 4, 2017</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Word Count</div>
+                            <div class="rc-meta-val">~390 words</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Reuters Byline</div>
+                            <div class="rc-meta-val" style="color:var(--verdict-real)">✓ Present</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="record-card rev" data-label="fake">
+                    <div class="rc-verdict-bar" style="background:var(--verdict-fake)"></div>
+                    <div class="rc-top">
+                        <div>
+                            <div class="rc-id">Source: Fake.csv · Row #18,903</div>
+                            <div class="rc-title-text">EXPOSED: Secret Government Program Spraying Chemicals From Planes
+                                Exposed By Brave Whistleblower</div>
+                            <div class="rc-body-text">A former government scientist has come forward with explosive
+                                claims about a covert program designed to spray chemicals into the atmosphere. The
+                                whistleblower, who asked to remain anonymous for fear of retaliation, provided documents
+                                showing that these operations have been ongoing since the early 2000s and are designed
+                                to control weather patterns...</div>
+                        </div>
+                        <div class="rc-verdict-chip vc-fake-chip">● FAKE</div>
+                    </div>
+                    <div class="rc-meta-row">
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Subject</div>
+                            <div class="rc-meta-val">Government News</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Date</div>
+                            <div class="rc-meta-val">March 8, 2017</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Word Count</div>
+                            <div class="rc-meta-val">~940 words</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Reuters Byline</div>
+                            <div class="rc-meta-val" style="color:var(--verdict-fake)">✕ Absent</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="record-card rev" data-label="real">
+                    <div class="rc-verdict-bar" style="background:var(--verdict-real)"></div>
+                    <div class="rc-top">
+                        <div>
+                            <div class="rc-id">Source: True.csv · Row #7,562</div>
+                            <div class="rc-title-text">Fed's Yellen says case for rate hike has strengthened</div>
+                            <div class="rc-body-text">JACKSON HOLE, Wyo. (Reuters) - Federal Reserve Chair Janet Yellen
+                                said on Friday the case for raising interest rates had strengthened in recent months, a
+                                signal the U.S. central bank could move to tighten monetary policy at its September
+                                meeting...</div>
+                        </div>
+                        <div class="rc-verdict-chip vc-real-chip">● REAL</div>
+                    </div>
+                    <div class="rc-meta-row">
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Subject</div>
+                            <div class="rc-meta-val">politicsNews</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Date</div>
+                            <div class="rc-meta-val">August 26, 2016</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Word Count</div>
+                            <div class="rc-meta-val">~520 words</div>
+                        </div>
+                        <div class="rc-meta-cell">
+                            <div class="rc-meta-key">Reuters Byline</div>
+                            <div class="rc-meta-val" style="color:var(--verdict-real)">✓ Present</div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="callout success" style="margin-top:2rem;">
+                <div class="callout-lbl">Spot the Pattern</div>
+                <p>Notice how <strong>fake articles</strong> use ALL-CAPS in headlines, sensational language
+                    ("BREAKING," "EXPOSED," "SICK"), emotional appeals, and anonymous sourcing. <strong>Real
+                        articles</strong> use neutral headlines, Reuters dateline prefixes, named sources, and
+                    inverted-pyramid structure. These <em>stylistic signals</em> are what models learn — and they
+                    generalise poorly to sophisticated modern misinformation that mimics legitimate journalism's style.
+                </p>
+            </div>
+        </div>
+
+        <!-- CITATION -->
+        <div class="citation-box rev">
+            <div class="cb-title">Dataset Information & Citation</div>
+            <div class="cb-entry">
+                <strong>Dataset:</strong><br>
+                Bisaillon, C. <em>Fake and Real News Dataset.</em><br>
+                Kaggle. <a href="https://www.kaggle.com/datasets/clmentbisaillon/fake-and-real-news-dataset"
+                    target="_blank">kaggle.com/datasets/clmentbisaillon/fake-and-real-news-dataset</a>
+            </div>
+            <div class="cb-entry">
+                <strong>Related Research:</strong><br>
+                Ahmed, H., Traore, I., & Saad, S. (2017). <em>Detection of Online Fake News Using N-Gram Analysis and
+                    Machine Learning Techniques.</em><br>
+                International Conference on Intelligent, Secure, and Dependable Systems in Distributed and Cloud
+                Environments (ISDDC 2017), pp. 127–138.
+            </div>
+            <div class="cb-entry">
+                <strong>Direct Download:</strong><br>
+                <a href="https://www.kaggle.com/datasets/clmentbisaillon/fake-and-real-news-dataset"
+                    target="_blank">https://www.kaggle.com/datasets/clmentbisaillon/fake-and-real-news-dataset</a><br>
+                Files: Fake.csv (23,481 rows) + True.csv (21,417 rows) · License: CC0 Public Domain
+            </div>
+        </div>
+
+    </div>
+
+    <!-- AUTHOR STRIP -->
+    <div class="author-strip">
+        <div class="as-avatar">
+            <img src="https://media.licdn.com/dms/image/v2/D5603AQEsekjn2AZbmQ/profile-displayphoto-scale_400_400/B56ZwVT88PHAAg-/0/1769884080112?e=1773273600&v=beta&t=y83Ygn5dnnwpMpmU-JmOdTro8WexSGVB5WBdrq55thc"
+                alt="Rakesh Raut" onerror="this.style.display='none'">
+        </div>
+        <div class="as-info">
+            <div class="as-lbl">Report Compiled by</div>
+            <div class="as-name">Rakesh Raut</div>
+            <div class="as-desc">
+                Deep-dive technical reference for the Kaggle Fake & Real News Dataset (Bisaillon).<br>
+                github.com/Rex1671 · linkedin.com/in/rakeshkumarraut
+            </div>
+        </div>
+        <div class="as-links">
+            <a class="as-link" href="https://github.com/Rex1671/" target="_blank">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="rgba(138,164,184,0.5)">
+                    <path
+                        d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
+                </svg>
+                <div>
+                    <span class="as-link-plat">GitHub</span>
+                    <span class="as-link-handle">github.com/Rex1671</span>
+                </div>
+            </a>
+            <a class="as-link" href="https://www.linkedin.com/in/rakeshkumarraut/" target="_blank">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="rgba(138,164,184,0.5)">
+                    <path
+                        d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" />
+                </svg>
+                <div>
+                    <span class="as-link-plat">LinkedIn</span>
+                    <span class="as-link-handle">rakeshkumarraut</span>
+                </div>
+            </a>
+            <a class="as-link" href="https://www.kaggle.com/datasets/clmentbisaillon/fake-and-real-news-dataset"
+                target="_blank">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="rgba(138,164,184,0.5)">
+                    <path
+                        d="M18.825 23.859c-.022.092-.117.141-.281.141h-3.139c-.187 0-.351-.082-.492-.248l-5.178-6.589-1.448 1.374v5.111c0 .235-.117.352-.351.352H5.505c-.236 0-.354-.117-.354-.352V.353c0-.233.118-.353.354-.353h2.431c.234 0 .351.12.351.353v14.343l6.203-6.272c.165-.165.33-.246.495-.246h3.239c.144 0 .236.06.281.18.046.149.034.238-.036.27l-6.555 6.344 6.836 8.507c.095.104.117.208.075.303z" />
+                </svg>
+                <div>
+                    <span class="as-link-plat">Kaggle Dataset</span>
+                    <span class="as-link-handle">Fake & Real News</span>
+                </div>
+            </a>
+        </div>
+    </div>
+
+    <div class="doc-footer">
+        FAKE & REAL NEWS DATASET — TECHNICAL DEEP-DIVE REPORT · Compiled by Rakesh Raut · github.com/Rex1671 · Kaggle:
+        clmentbisaillon/fake-and-real-news-dataset
+    </div>
+
+    <script>
+        (() => {
+            // ── Scroll progress & back-to-top ──
+            const sp = document.getElementById('sp');
+            const btt = document.getElementById('btt');
+
+            let ticking = false;
+            window.addEventListener('scroll', () => {
+                if (!ticking) {
+                    requestAnimationFrame(() => {
+                        const pct = window.scrollY / (document.documentElement.scrollHeight - window.innerHeight) * 100;
+                        sp.style.width = Math.min(pct, 100) + '%';
+                        btt.classList.toggle('vis', window.scrollY > 500);
+                        ticking = false;
+                    });
+                    ticking = true;
+                }
+            });
+
+            btt.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+
+            // ── Filter tabs ──
+            const tabs = document.querySelectorAll('.ftab');
+            const cards = document.querySelectorAll('.record-card');
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    tabs.forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+                    const f = tab.dataset.filter;
+                    cards.forEach(card => {
+                        card.classList.toggle('hidden', f !== 'all' && card.dataset.label !== f);
+                    });
+                });
+            });
+
+            // ── Intersection Observer for reveal animations ──
+            const io = new IntersectionObserver(entries => {
+                entries.forEach(e => {
+                    if (!e.isIntersecting) return;
+                    const el = e.target;
+                    if (el.classList.contains('rev') || el.classList.contains('rev-l'))
+                        el.classList.add('vis');
+                    if (el.classList.contains('stag'))
+                        el.classList.add('vis');
+                    if (el.classList.contains('code-block'))
+                        el.classList.add('vis');
+                    if (el.classList.contains('dv-fill') || el.classList.contains('spk-fill') || el.classList.contains('cs-card-fill'))
+                        setTimeout(() => el.classList.add('anim'), 150);
+                    if (el.classList.contains('sec-title-wrap'))
+                        el.classList.add('anim');
+                    io.unobserve(el);
+                });
+            }, { threshold: 0.05, rootMargin: '0px 0px -40px 0px' });
+
+            // Observe all animated elements
+            const selectors = '.rev, .rev-l, .stag, .code-block, .dv-fill, .spk-fill, .cs-card-fill, .sec-title-wrap';
+            document.querySelectorAll(selectors).forEach(el => io.observe(el));
+
+            // ── Table row hover effects ──
+            document.querySelectorAll('.bench-table tbody tr, .compare-table tbody tr').forEach(tr => {
+                tr.style.transition = 'transform 0.2s, background 0.2s';
+                tr.addEventListener('mouseenter', () => tr.style.transform = 'translateX(4px)');
+                tr.addEventListener('mouseleave', () => tr.style.transform = '');
+            });
+
+            // ── Section navigation dots ──
+            const sections = document.querySelectorAll('.section');
+            if (sections.length > 0 && window.innerWidth > 860) {
+                const nav = document.createElement('div');
+                nav.className = 'section-nav';
+
+                sections.forEach((sec, i) => {
+                    const d = document.createElement('div');
+                    d.className = 'dot';
+                    d.title = 'Section ' + (i + 1);
+                    d.addEventListener('click', () => sec.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+                    nav.appendChild(d);
+                });
+
+                document.body.appendChild(nav);
+                const dots = nav.querySelectorAll('.dot');
+
+                const secObs = new IntersectionObserver(entries => {
+                    entries.forEach(e => {
+                        const idx = Array.from(sections).indexOf(e.target);
+                        if (idx >= 0 && dots[idx]) {
+                            dots[idx].classList.toggle('active', e.isIntersecting);
+                        }
+                    });
+                }, { threshold: 0.25 });
+
+                sections.forEach(sec => secObs.observe(sec));
+            }
+
+            // ── Fallback: reveal all after generous delay ──
+            setTimeout(() => {
+                document.querySelectorAll('.rev,.rev-l,.stag,.code-block').forEach(el => el.classList.add('vis'));
+                document.querySelectorAll('.dv-fill,.spk-fill,.cs-card-fill').forEach(el => el.classList.add('anim'));
+                document.querySelectorAll('.sec-title-wrap').forEach(el => el.classList.add('anim'));
+            }, 4000);
+        })();
+    </script>
+</body>
+
+</html>

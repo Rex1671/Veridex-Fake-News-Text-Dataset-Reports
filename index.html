@@ -1,0 +1,2965 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fake News Detection Datasets — Technical Report</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700&family=IBM+Plex+Mono:wght@300;400;500&family=IBM+Plex+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --cream: #f9f5ef;
+            --ink: #1a1208;
+            --rust: #c0392b;
+            --gold: #b8860b;
+            --olive: #4a5c2e;
+            --slate: #2c3e50;
+            --muted: #7a6e5f;
+            --rule: #d9cfc2;
+            --highlight: #fff8ec;
+            --isot: #c0392b;
+            --fnd: #1a5276;
+            --liar: #145a32;
+            --fnn: #6c3483;
+            --code-bg: #1c1c1c;
+            --code-fg: #e8dcc8;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: 'IBM Plex Sans', sans-serif;
+            background: var(--cream);
+            color: var(--ink);
+            font-size: 15px;
+            line-height: 1.75;
+        }
+
+        /* ══════════════════════════════════════
+           PAGE TRANSITION OVERLAY
+           ══════════════════════════════════════ */
+        .page-transition-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 100000;
+            pointer-events: none;
+            overflow: hidden;
+        }
+
+        .page-transition-overlay.active {
+            pointer-events: all;
+        }
+
+        .pto-slice {
+            position: absolute;
+            top: 0;
+            width: 20%;
+            height: 100%;
+            transform: translateY(100%);
+            transition: transform 0.6s cubic-bezier(.77, 0, .18, 1);
+        }
+
+        .pto-slice:nth-child(1) {
+            left: 0%;
+        }
+
+        .pto-slice:nth-child(2) {
+            left: 20%;
+            transition-delay: 0.06s;
+        }
+
+        .pto-slice:nth-child(3) {
+            left: 40%;
+            transition-delay: 0.12s;
+        }
+
+        .pto-slice:nth-child(4) {
+            left: 60%;
+            transition-delay: 0.18s;
+        }
+
+        .pto-slice:nth-child(5) {
+            left: 80%;
+            transition-delay: 0.24s;
+        }
+
+        .page-transition-overlay.active .pto-slice {
+            transform: translateY(0);
+        }
+
+        .pto-label {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 10;
+            opacity: 0;
+            transition: opacity 0.3s 0.5s;
+            text-align: center;
+        }
+
+        .page-transition-overlay.active .pto-label {
+            opacity: 1;
+        }
+
+        .pto-label-name {
+            font-family: 'Playfair Display', serif;
+            font-size: clamp(2rem, 5vw, 4rem);
+            font-weight: 900;
+            color: white;
+            line-height: 1;
+            margin-bottom: 0.5rem;
+        }
+
+        .pto-label-sub {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 11px;
+            letter-spacing: 0.25em;
+            text-transform: uppercase;
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .pto-spinner {
+            margin-top: 1.5rem;
+            display: flex;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        .pto-spinner-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.4);
+            animation: pto-bounce 1.2s infinite ease-in-out;
+        }
+
+        .pto-spinner-dot:nth-child(2) {
+            animation-delay: 0.15s;
+        }
+
+        .pto-spinner-dot:nth-child(3) {
+            animation-delay: 0.3s;
+        }
+
+        @keyframes pto-bounce {
+
+            0%,
+            80%,
+            100% {
+                transform: scale(0.6);
+                opacity: 0.3;
+            }
+
+            40% {
+                transform: scale(1.2);
+                opacity: 1;
+            }
+        }
+
+        /* ══════════════════════════════════════
+           FLOATING DATASET NAV
+           ══════════════════════════════════════ */
+        .dataset-nav-float {
+            position: fixed;
+            bottom: 2rem;
+            left: 50%;
+            transform: translateX(-50%) translateY(120px);
+            z-index: 9999;
+            display: flex;
+            gap: 3px;
+            background: var(--ink);
+            padding: 6px;
+            border: 1px solid rgba(249, 245, 239, 0.1);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+            opacity: 0;
+            transition: transform 0.6s cubic-bezier(.22, .8, .46, 1), opacity 0.6s;
+        }
+
+        .dataset-nav-float.visible {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
+
+        .dnf-item {
+            position: relative;
+            padding: 10px 18px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: all 0.3s;
+            overflow: hidden;
+        }
+
+        .dnf-item::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .dnf-item:hover::before {
+            opacity: 1;
+        }
+
+        .dnf-item[data-ds="isot"]::before {
+            background: rgba(192, 57, 43, 0.15);
+        }
+
+        .dnf-item[data-ds="fnd"]::before {
+            background: rgba(26, 82, 118, 0.15);
+        }
+
+        .dnf-item[data-ds="liar"]::before {
+            background: rgba(20, 90, 50, 0.15);
+        }
+
+        .dnf-item[data-ds="fnn"]::before {
+            background: rgba(108, 52, 131, 0.15);
+        }
+
+        .dnf-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            position: relative;
+            z-index: 1;
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+
+        .dnf-item:hover .dnf-dot {
+            transform: scale(1.4);
+        }
+
+        .dnf-item[data-ds="isot"] .dnf-dot {
+            background: var(--isot);
+        }
+
+        .dnf-item[data-ds="fnd"] .dnf-dot {
+            background: var(--fnd);
+        }
+
+        .dnf-item[data-ds="liar"] .dnf-dot {
+            background: var(--liar);
+        }
+
+        .dnf-item[data-ds="fnn"] .dnf-dot {
+            background: var(--fnn);
+        }
+
+        .dnf-item:hover .dnf-dot {
+            box-shadow: 0 0 12px currentColor;
+        }
+
+        .dnf-item[data-ds="isot"]:hover .dnf-dot {
+            box-shadow: 0 0 12px var(--isot);
+        }
+
+        .dnf-item[data-ds="fnd"]:hover .dnf-dot {
+            box-shadow: 0 0 12px var(--fnd);
+        }
+
+        .dnf-item[data-ds="liar"]:hover .dnf-dot {
+            box-shadow: 0 0 12px var(--liar);
+        }
+
+        .dnf-item[data-ds="fnn"]:hover .dnf-dot {
+            box-shadow: 0 0 12px var(--fnn);
+        }
+
+        .dnf-name {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 10px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: rgba(249, 245, 239, 0.5);
+            position: relative;
+            z-index: 1;
+            transition: color 0.3s;
+            white-space: nowrap;
+        }
+
+        .dnf-item:hover .dnf-name {
+            color: var(--cream);
+        }
+
+        .dnf-arrow {
+            position: relative;
+            z-index: 1;
+            opacity: 0;
+            transform: translateX(-8px);
+            transition: opacity 0.3s, transform 0.3s;
+            color: rgba(249, 245, 239, 0.4);
+            font-size: 12px;
+        }
+
+        .dnf-item:hover .dnf-arrow {
+            opacity: 1;
+            transform: translateX(0);
+        }
+
+        /* ══════════════════════════════════════
+           MASTHEAD
+           ══════════════════════════════════════ */
+        .masthead {
+            background: var(--ink);
+            color: var(--cream);
+            padding: 0;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .masthead-top-bar {
+            border-bottom: 1px solid rgba(249, 245, 239, 0.15);
+            padding: 0.6rem 4rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .masthead-top-date {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 10px;
+            letter-spacing: 0.15em;
+            color: rgba(249, 245, 239, 0.45);
+            text-transform: uppercase;
+        }
+
+        .masthead-top-tags {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .masthead-tag {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 10px;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: rgba(249, 245, 239, 0.35);
+        }
+
+        .masthead-hero {
+            display: grid;
+            grid-template-columns: 1fr 320px;
+            min-height: 70vh;
+            position: relative;
+        }
+
+        .masthead-hero::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background:
+                radial-gradient(ellipse at 15% 80%, rgba(192, 57, 43, 0.08) 0%, transparent 60%),
+                radial-gradient(ellipse at 85% 20%, rgba(108, 52, 131, 0.06) 0%, transparent 60%);
+            pointer-events: none;
+        }
+
+        .masthead-hero::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 320px;
+            width: 100%;
+            height: 100%;
+            background-image: radial-gradient(circle, rgba(249, 245, 239, 0.04) 1px, transparent 1px);
+            background-size: 22px 22px;
+            pointer-events: none;
+        }
+
+        .masthead-main {
+            padding: 4rem 4rem 3rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            position: relative;
+            z-index: 1;
+        }
+
+        .masthead-category {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 11px;
+            letter-spacing: 0.25em;
+            text-transform: uppercase;
+            color: var(--rust);
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+        }
+
+        .masthead-category::before {
+            content: '';
+            width: 32px;
+            height: 1px;
+            background: var(--rust);
+            display: block;
+        }
+
+        .masthead-title {
+            font-family: 'Playfair Display', serif;
+            font-size: clamp(2.8rem, 6vw, 5.5rem);
+            font-weight: 900;
+            line-height: 1.0;
+            letter-spacing: -0.02em;
+            margin-bottom: 2rem;
+            color: var(--cream);
+        }
+
+        .masthead-title em {
+            font-style: italic;
+            color: rgba(249, 245, 239, 0.55);
+        }
+
+        .masthead-deck {
+            font-family: 'IBM Plex Sans', sans-serif;
+            font-size: 1.05rem;
+            font-weight: 300;
+            color: rgba(249, 245, 239, 0.6);
+            max-width: 560px;
+            line-height: 1.65;
+            border-left: 2px solid var(--rust);
+            padding-left: 1.2rem;
+            margin-bottom: 2.5rem;
+        }
+
+        .masthead-stats-row {
+            display: flex;
+            gap: 2.5rem;
+            padding-top: 2rem;
+            border-top: 1px solid rgba(249, 245, 239, 0.1);
+            flex-wrap: wrap;
+        }
+
+        .masthead-stat {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+        .masthead-stat-val {
+            font-family: 'Playfair Display', serif;
+            font-size: 2.2rem;
+            font-weight: 700;
+            color: var(--cream);
+            line-height: 1;
+        }
+
+        .masthead-stat-label {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 9px;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: rgba(249, 245, 239, 0.35);
+        }
+
+        /* ══════════════════════════════════════
+           SIDEBAR DATASET CARDS — ENHANCED
+           ══════════════════════════════════════ */
+        .masthead-sidebar {
+            border-left: 1px solid rgba(249, 245, 239, 0.08);
+            padding: 3rem 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        .sidebar-dataset-card {
+            padding: 1.2rem 1.4rem;
+            border: 1px solid rgba(249, 245, 239, 0.08);
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(.22, .8, .46, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .sidebar-dataset-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 0;
+            height: 100%;
+            transition: width 0.5s cubic-bezier(.22, .8, .46, 1);
+            z-index: 0;
+        }
+
+        .sidebar-dataset-card[data-page="isot.html"]::before {
+            background: linear-gradient(90deg, rgba(192, 57, 43, 0.15), transparent);
+        }
+
+        .sidebar-dataset-card[data-page="fnd.html"]::before {
+            background: linear-gradient(90deg, rgba(26, 82, 118, 0.15), transparent);
+        }
+
+        .sidebar-dataset-card[data-page="liar.html"]::before {
+            background: linear-gradient(90deg, rgba(20, 90, 50, 0.15), transparent);
+        }
+
+        .sidebar-dataset-card[data-page="fakenewsnet.html"]::before {
+            background: linear-gradient(90deg, rgba(108, 52, 131, 0.15), transparent);
+        }
+
+        .sidebar-dataset-card:hover::before {
+            width: 100%;
+        }
+
+        .sidebar-dataset-card:hover {
+            background: rgba(249, 245, 239, 0.04);
+            border-color: rgba(249, 245, 239, 0.2);
+            transform: translateX(6px);
+            box-shadow: -4px 0 0 0 currentColor;
+        }
+
+        .sidebar-dataset-card[data-page="isot.html"]:hover {
+            box-shadow: -4px 0 0 0 var(--isot);
+        }
+
+        .sidebar-dataset-card[data-page="fnd.html"]:hover {
+            box-shadow: -4px 0 0 0 var(--fnd);
+        }
+
+        .sidebar-dataset-card[data-page="liar.html"]:hover {
+            box-shadow: -4px 0 0 0 var(--liar);
+        }
+
+        .sidebar-dataset-card[data-page="fakenewsnet.html"]:hover {
+            box-shadow: -4px 0 0 0 var(--fnn);
+        }
+
+        .sidebar-dataset-card:active {
+            transform: translateX(3px) scale(0.98);
+        }
+
+        .sdc-inner {
+            position: relative;
+            z-index: 1;
+        }
+
+        .sdc-num {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 9px;
+            letter-spacing: 0.15em;
+            color: rgba(249, 245, 239, 0.25);
+            margin-bottom: 0.4rem;
+        }
+
+        .sdc-name {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--cream);
+            margin-bottom: 0.3rem;
+        }
+
+        .sdc-tag {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 10px;
+            padding: 2px 8px;
+            border-radius: 2px;
+            display: inline-block;
+        }
+
+        .sdc-tag.isot {
+            background: rgba(192, 57, 43, 0.2);
+            color: #e07070;
+            border: 1px solid rgba(192, 57, 43, 0.3);
+        }
+
+        .sdc-tag.fnd {
+            background: rgba(26, 82, 118, 0.2);
+            color: #7090c8;
+            border: 1px solid rgba(26, 82, 118, 0.3);
+        }
+
+        .sdc-tag.liar {
+            background: rgba(20, 90, 50, 0.2);
+            color: #70c890;
+            border: 1px solid rgba(20, 90, 50, 0.3);
+        }
+
+        .sdc-tag.fnn {
+            background: rgba(108, 52, 131, 0.2);
+            color: #c080e0;
+            border: 1px solid rgba(108, 52, 131, 0.3);
+        }
+
+        .sdc-explore {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 0.6rem;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 9px;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: rgba(249, 245, 239, 0.25);
+            opacity: 0;
+            transform: translateY(6px);
+            transition: opacity 0.3s 0.1s, transform 0.3s 0.1s, color 0.3s;
+        }
+
+        .sidebar-dataset-card:hover .sdc-explore {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .sdc-explore-arrow {
+            display: inline-flex;
+            width: 18px;
+            height: 18px;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid rgba(249, 245, 239, 0.15);
+            border-radius: 50%;
+            font-size: 10px;
+            transition: transform 0.3s, border-color 0.3s;
+        }
+
+        .sidebar-dataset-card:hover .sdc-explore-arrow {
+            transform: translateX(3px);
+            border-color: rgba(249, 245, 239, 0.35);
+        }
+
+        /* ══════════════════════════════════════
+           DATASET PROFILE — EXPLORE BUTTON
+           ══════════════════════════════════════ */
+        .dp-explore-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0;
+            overflow: hidden;
+            border-top: 1px solid var(--rule);
+            cursor: pointer;
+            position: relative;
+        }
+
+        .dp-explore-bar::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            transform: translateX(-100%);
+            transition: transform 0.6s cubic-bezier(.22, .8, .46, 1);
+            z-index: 0;
+        }
+
+        .dp-explore-bar:hover::before {
+            transform: translateX(0);
+        }
+
+        .dp-explore-bar.isot::before {
+            background: var(--isot);
+        }
+
+        .dp-explore-bar.fnd::before {
+            background: var(--fnd);
+        }
+
+        .dp-explore-bar.liar::before {
+            background: var(--liar);
+        }
+
+        .dp-explore-bar.fnn::before {
+            background: var(--fnn);
+        }
+
+        .dp-explore-content {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            padding: 1.2rem 2.5rem;
+            transition: color 0.3s;
+        }
+
+        .dp-explore-bar:hover .dp-explore-content {
+            color: white;
+        }
+
+        .dp-explore-text {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .dp-explore-label {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.1rem;
+            font-weight: 700;
+            transition: color 0.3s;
+        }
+
+        .dp-explore-bar:hover .dp-explore-label {
+            color: white;
+        }
+
+        .dp-explore-sublabel {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 9px;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: var(--muted);
+            transition: color 0.3s;
+        }
+
+        .dp-explore-bar:hover .dp-explore-sublabel {
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .dp-explore-icon {
+            position: relative;
+            z-index: 1;
+            width: 42px;
+            height: 42px;
+            border: 1.5px solid var(--ink);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.4s cubic-bezier(.22, .8, .46, 1);
+            overflow: hidden;
+        }
+
+        .dp-explore-bar:hover .dp-explore-icon {
+            border-color: white;
+            transform: translateX(0);
+        }
+
+        .dp-explore-icon-arrow {
+            font-size: 1.1rem;
+            transition: transform 0.4s cubic-bezier(.22, .8, .46, 1);
+        }
+
+        .dp-explore-bar:hover .dp-explore-icon-arrow {
+            transform: translateX(3px);
+            color: white;
+        }
+
+        .dp-explore-icon::after {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: var(--ink);
+            transform: translateX(-110%);
+            transition: transform 0.4s cubic-bezier(.22, .8, .46, 1);
+        }
+
+        .dp-explore-bar:hover .dp-explore-icon::after {
+            transform: translateX(0);
+        }
+
+        .dp-explore-bar:hover .dp-explore-icon-arrow {
+            position: relative;
+            z-index: 2;
+        }
+
+        /* Pulse ring on hover */
+        .dp-explore-bar:hover .dp-explore-icon {
+            animation: explore-pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes explore-pulse {
+            0% {
+                box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.3);
+            }
+
+            70% {
+                box-shadow: 0 0 0 8px rgba(255, 255, 255, 0);
+            }
+
+            100% {
+                box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
+            }
+        }
+
+        /* ══════════════════════════════════════
+           RIPPLE EFFECT
+           ══════════════════════════════════════ */
+        .ripple {
+            position: absolute;
+            border-radius: 50%;
+            transform: scale(0);
+            animation: ripple-anim 0.6s ease-out;
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        @keyframes ripple-anim {
+            to {
+                transform: scale(4);
+                opacity: 0;
+            }
+        }
+
+        /* ══════════════════════════════════════
+           REST OF STYLES
+           ══════════════════════════════════════ */
+        .doc-body {
+            max-width: 1120px;
+            margin: 0 auto;
+            padding: 5rem 3rem;
+        }
+
+        .section {
+            margin-bottom: 6rem;
+        }
+
+        .section-rule {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            margin-bottom: 2.5rem;
+            position: relative;
+        }
+
+        .section-rule::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--ink);
+        }
+
+        .section-num {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 10px;
+            letter-spacing: 0.15em;
+            color: var(--muted);
+            flex-shrink: 0;
+        }
+
+        .section-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 2rem;
+            font-weight: 700;
+            letter-spacing: -0.01em;
+            flex-shrink: 0;
+        }
+
+        p {
+            margin-bottom: 1.1rem;
+            color: #2e2620;
+        }
+
+        .dataset-profile {
+            margin: 3rem 0;
+            border: 1.5px solid var(--ink);
+            position: relative;
+            overflow: hidden;
+            transition: box-shadow 0.3s ease;
+        }
+
+        .dataset-profile:hover {
+            box-shadow: 6px 6px 0 var(--ink);
+        }
+
+        .dp-stripe {
+            height: 6px;
+        }
+
+        .dp-stripe.isot {
+            background: var(--isot);
+        }
+
+        .dp-stripe.fnd {
+            background: var(--fnd);
+        }
+
+        .dp-stripe.liar {
+            background: var(--liar);
+        }
+
+        .dp-stripe.fnn {
+            background: var(--fnn);
+        }
+
+        .dp-header {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            padding: 2rem 2.5rem 1.5rem;
+            border-bottom: 1px solid var(--rule);
+            gap: 1rem;
+        }
+
+        .dp-name {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.8rem;
+            font-weight: 900;
+            line-height: 1.1;
+        }
+
+        .dp-fullname {
+            font-family: 'IBM Plex Sans', sans-serif;
+            font-size: 13px;
+            color: var(--muted);
+            margin-top: 0.3rem;
+            font-style: italic;
+        }
+
+        .dp-badge-cluster {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            align-items: flex-end;
+        }
+
+        .dp-badge {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 9px;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            padding: 3px 10px;
+            border-radius: 2px;
+        }
+
+        .dp-body {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            border-bottom: 1px solid var(--rule);
+        }
+
+        .dp-col {
+            padding: 1.8rem 2rem;
+            border-right: 1px solid var(--rule);
+        }
+
+        .dp-col:last-child {
+            border-right: none;
+        }
+
+        .dp-col-label {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 9px;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 0.8rem;
+        }
+
+        .dp-col-val {
+            font-family: 'Playfair Display', serif;
+            font-size: 2rem;
+            font-weight: 700;
+            line-height: 1;
+            margin-bottom: 0.4rem;
+        }
+
+        .dp-col-desc {
+            font-size: 12.5px;
+            color: var(--muted);
+            line-height: 1.5;
+        }
+
+        .dp-footer {
+            padding: 1.5rem 2.5rem;
+            background: var(--highlight);
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .dp-footer-label {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 9px;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 0.2rem;
+        }
+
+        .dp-footer-text {
+            font-size: 13px;
+            color: #3a3028;
+            line-height: 1.6;
+        }
+
+        .class-bars {
+            padding: 1.2rem 2.5rem 1.8rem;
+            border-bottom: 1px solid var(--rule);
+        }
+
+        .class-bar-row {
+            margin-bottom: 0.9rem;
+        }
+
+        .class-bar-label {
+            display: flex;
+            justify-content: space-between;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 11px;
+            color: var(--muted);
+            margin-bottom: 5px;
+        }
+
+        .class-bar-track {
+            height: 10px;
+            background: var(--rule);
+            border-radius: 1px;
+            overflow: hidden;
+        }
+
+        .class-bar-fill {
+            height: 100%;
+            border-radius: 1px;
+            width: 0;
+            transition: width 1.3s cubic-bezier(.22, .8, .46, 1);
+        }
+
+        .class-bar-fill.animated {
+            width: var(--w) !important;
+        }
+
+        .fill-real {
+            background: var(--olive);
+        }
+
+        .fill-fake {
+            background: var(--rust);
+        }
+
+        .fill-half {
+            background: var(--slate);
+        }
+
+        .fill-a {
+            background: #1a5276;
+        }
+
+        .fill-b {
+            background: #6c3483;
+        }
+
+        .fill-c {
+            background: #145a32;
+        }
+
+        .fill-d {
+            background: #7d6608;
+        }
+
+        .comp-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 2.5rem 0;
+            font-size: 13.5px;
+        }
+
+        .comp-table th {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 9px;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            padding: 12px 16px;
+            text-align: left;
+            background: var(--ink);
+            color: var(--cream);
+            border-right: 1px solid rgba(249, 245, 239, 0.08);
+        }
+
+        .comp-table th:last-child {
+            border-right: none;
+        }
+
+        .comp-table td {
+            padding: 13px 16px;
+            border-bottom: 1px solid var(--rule);
+            vertical-align: top;
+        }
+
+        .comp-table tbody tr:hover td {
+            background: var(--highlight);
+        }
+
+        .td-name {
+            font-family: 'Playfair Display', serif;
+            font-size: 1rem;
+            font-weight: 700;
+        }
+
+        .dot-isot {
+            color: var(--isot);
+        }
+
+        .dot-fnd {
+            color: var(--fnd);
+        }
+
+        .dot-liar {
+            color: var(--liar);
+        }
+
+        .dot-fnn {
+            color: var(--fnn);
+        }
+
+        .badge {
+            display: inline-block;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 10px;
+            padding: 2px 8px;
+            border-radius: 1px;
+            letter-spacing: 0.04em;
+        }
+
+        .b-binary {
+            background: rgba(192, 57, 43, 0.1);
+            color: var(--rust);
+            border: 1px solid rgba(192, 57, 43, 0.25);
+        }
+
+        .b-multi {
+            background: rgba(108, 52, 131, 0.1);
+            color: var(--fnn);
+            border: 1px solid rgba(108, 52, 131, 0.25);
+        }
+
+        .b-graph {
+            background: rgba(26, 82, 118, 0.1);
+            color: var(--fnd);
+            border: 1px solid rgba(26, 82, 118, 0.25);
+        }
+
+        .b-nlp {
+            background: rgba(20, 90, 50, 0.1);
+            color: var(--liar);
+            border: 1px solid rgba(20, 90, 50, 0.25);
+        }
+
+        .callout {
+            margin: 2rem 0;
+            padding: 1.5rem 2rem;
+            border-left: 3px solid var(--ink);
+            background: white;
+            position: relative;
+        }
+
+        .callout-label {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 9px;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 0.6rem;
+        }
+
+        .callout p {
+            margin-bottom: 0;
+            font-size: 14px;
+            color: #2e2620;
+        }
+
+        .callout.warn {
+            border-left-color: var(--rust);
+            background: rgba(192, 57, 43, 0.03);
+        }
+
+        .callout.tip {
+            border-left-color: var(--olive);
+            background: rgba(74, 92, 46, 0.03);
+        }
+
+        .callout.info {
+            border-left-color: var(--fnd);
+            background: rgba(26, 82, 118, 0.03);
+        }
+
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1px;
+            background: var(--rule);
+            border: 1px solid var(--rule);
+            margin: 2.5rem 0;
+        }
+
+        .feature-cell {
+            background: var(--cream);
+            padding: 1.8rem 1.5rem;
+            transition: background 0.2s, transform 0.2s;
+        }
+
+        .feature-cell:hover {
+            background: white;
+            transform: translateY(-3px);
+        }
+
+        .feature-icon {
+            font-size: 1.4rem;
+            margin-bottom: 0.6rem;
+        }
+
+        .feature-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 14px;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+
+        .feature-desc {
+            font-size: 12.5px;
+            color: var(--muted);
+            line-height: 1.6;
+        }
+
+        .chart-box {
+            background: white;
+            border: 1px solid var(--rule);
+            padding: 2rem;
+            margin: 2.5rem 0;
+        }
+
+        .chart-title {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 10px;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 1.5rem;
+        }
+
+        .pipeline {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1px;
+            background: var(--ink);
+            border: 1.5px solid var(--ink);
+            margin: 2.5rem 0;
+        }
+
+        .pipe-step {
+            background: var(--cream);
+            padding: 1.8rem 1.4rem;
+            transition: background 0.2s;
+            position: relative;
+        }
+
+        .pipe-step:hover {
+            background: var(--highlight);
+        }
+
+        .pipe-step-num {
+            font-family: 'Playfair Display', serif;
+            font-size: 2.5rem;
+            font-weight: 900;
+            color: rgba(26, 18, 8, 0.08);
+            line-height: 1;
+            margin-bottom: 0.5rem;
+        }
+
+        .pipe-step-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 14px;
+            font-weight: 700;
+            margin-bottom: 0.4rem;
+        }
+
+        .pipe-step-desc {
+            font-size: 12px;
+            color: var(--muted);
+            line-height: 1.55;
+        }
+
+        .code-block {
+            background: var(--code-bg);
+            padding: 1.5rem 2rem;
+            margin: 2rem 0;
+            overflow-x: auto;
+            opacity: 0;
+            transform: translateY(12px);
+            transition: opacity 0.5s, transform 0.5s;
+        }
+
+        .code-block.visible {
+            opacity: 1;
+            transform: none;
+        }
+
+        .code-block pre {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 12px;
+            color: var(--code-fg);
+            line-height: 1.8;
+            white-space: pre;
+        }
+
+        .cc {
+            color: #5a6a5a;
+        }
+
+        .cs {
+            color: #b8c87a;
+        }
+
+        .ck {
+            color: #7ab8c8;
+        }
+
+        .cn {
+            color: #c8a07a;
+        }
+
+        .citation-box {
+            background: var(--ink);
+            color: var(--cream);
+            padding: 2rem 2.5rem;
+            margin: 3rem 0;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 11.5px;
+            line-height: 1.9;
+        }
+
+        .citation-box-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 1rem;
+            font-weight: 700;
+            color: rgba(249, 245, 239, 0.55);
+            letter-spacing: 0.05em;
+            margin-bottom: 1rem;
+            padding-bottom: 0.8rem;
+            border-bottom: 1px solid rgba(249, 245, 239, 0.1);
+        }
+
+        .cite-entry {
+            margin-bottom: 1.2rem;
+            padding-left: 1.2rem;
+            border-left: 2px solid rgba(249, 245, 239, 0.15);
+        }
+
+        .cite-tag {
+            font-size: 9px;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: rgba(249, 245, 239, 0.3);
+            display: block;
+            margin-bottom: 0.3rem;
+        }
+
+        .author-strip {
+            background: var(--ink);
+            color: var(--cream);
+            padding: 3.5rem 4rem;
+            display: flex;
+            align-items: center;
+            gap: 3rem;
+            flex-wrap: wrap;
+        }
+
+        .author-avatar {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: var(--rust);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Playfair Display', serif;
+            font-size: 1.8rem;
+            font-weight: 900;
+            color: white;
+            flex-shrink: 0;
+            overflow: hidden;
+        }
+
+        .author-photo {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 50%;
+            display: block;
+        }
+
+        .author-info {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .author-label {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 9px;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: rgba(249, 245, 239, 0.3);
+            margin-bottom: 0.4rem;
+        }
+
+        .author-name {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.8rem;
+            font-weight: 900;
+            line-height: 1.1;
+            margin-bottom: 0.5rem;
+        }
+
+        .author-desc {
+            font-size: 13px;
+            color: rgba(249, 245, 239, 0.45);
+            line-height: 1.7;
+        }
+
+        .author-links {
+            display: flex;
+            flex-direction: column;
+            gap: 0.6rem;
+        }
+
+        .author-link {
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+            text-decoration: none;
+            padding: 0.6rem 1.2rem;
+            border: 1px solid rgba(249, 245, 239, 0.1);
+            transition: all 0.2s;
+            min-width: 230px;
+        }
+
+        .author-link:hover {
+            border-color: rgba(249, 245, 239, 0.25);
+            background: rgba(249, 245, 239, 0.04);
+        }
+
+        .author-link-platform {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 9px;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: rgba(249, 245, 239, 0.3);
+            display: block;
+        }
+
+        .author-link-handle {
+            font-family: 'Playfair Display', serif;
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--cream);
+        }
+
+        .doc-footer {
+            background: #0d0902;
+            color: rgba(249, 245, 239, 0.2);
+            padding: 1.5rem 3rem;
+            text-align: center;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 10px;
+            letter-spacing: 0.08em;
+        }
+
+        #scroll-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 3px;
+            width: 0%;
+            background: linear-gradient(90deg, var(--rust), var(--fnn));
+            z-index: 10000;
+        }
+
+        #back-top {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            width: 44px;
+            height: 44px;
+            background: var(--ink);
+            color: var(--cream);
+            border: none;
+            cursor: pointer;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: opacity 0.3s, transform 0.3s, background 0.2s;
+            z-index: 9990;
+        }
+
+        #back-top.visible {
+            opacity: 1;
+            transform: none;
+        }
+
+        #back-top:hover {
+            background: var(--rust);
+        }
+
+        .reveal {
+            opacity: 0;
+            transform: translateY(30px);
+            transition: opacity 0.7s cubic-bezier(.22, .8, .46, 1), transform 0.7s cubic-bezier(.22, .8, .46, 1);
+        }
+
+        .reveal.visible {
+            opacity: 1;
+            transform: none;
+        }
+
+        .reveal-left {
+            opacity: 0;
+            transform: translateX(-30px);
+            transition: opacity 0.7s cubic-bezier(.22, .8, .46, 1), transform 0.7s cubic-bezier(.22, .8, .46, 1);
+        }
+
+        .reveal-left.visible {
+            opacity: 1;
+            transform: none;
+        }
+
+        .stagger>* {
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.5s, transform 0.5s cubic-bezier(.22, .8, .46, 1);
+        }
+
+        .stagger.visible>*:nth-child(1) {
+            opacity: 1;
+            transform: none;
+            transition-delay: 0.05s;
+        }
+
+        .stagger.visible>*:nth-child(2) {
+            opacity: 1;
+            transform: none;
+            transition-delay: 0.12s;
+        }
+
+        .stagger.visible>*:nth-child(3) {
+            opacity: 1;
+            transform: none;
+            transition-delay: 0.19s;
+        }
+
+        .stagger.visible>*:nth-child(4) {
+            opacity: 1;
+            transform: none;
+            transition-delay: 0.26s;
+        }
+
+        .stagger.visible>*:nth-child(5) {
+            opacity: 1;
+            transform: none;
+            transition-delay: 0.33s;
+        }
+
+        .stagger.visible>*:nth-child(6) {
+            opacity: 1;
+            transform: none;
+            transition-delay: 0.40s;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(28px);
+            }
+
+            to {
+                opacity: 1;
+                transform: none;
+            }
+        }
+
+        @keyframes slideInLeft {
+            from {
+                opacity: 0;
+                transform: translateX(-28px);
+            }
+
+            to {
+                opacity: 1;
+                transform: none;
+            }
+        }
+
+        .masthead-main>* {
+            animation: fadeInUp 0.8s cubic-bezier(.22, .8, .46, 1) both;
+        }
+
+        .masthead-category {
+            animation-delay: 0.1s;
+        }
+
+        .masthead-title {
+            animation-delay: 0.25s;
+        }
+
+        .masthead-deck {
+            animation-delay: 0.4s;
+        }
+
+        .masthead-stats-row {
+            animation-delay: 0.55s;
+        }
+
+        .masthead-sidebar>* {
+            animation: slideInLeft 0.6s cubic-bezier(.22, .8, .46, 1) both;
+        }
+
+        .masthead-sidebar>*:nth-child(1) {
+            animation-delay: 0.3s;
+        }
+
+        .masthead-sidebar>*:nth-child(2) {
+            animation-delay: 0.42s;
+        }
+
+        .masthead-sidebar>*:nth-child(3) {
+            animation-delay: 0.54s;
+        }
+
+        .masthead-sidebar>*:nth-child(4) {
+            animation-delay: 0.66s;
+        }
+
+        .masthead-sidebar>*:nth-child(5) {
+            animation-delay: 0.78s;
+        }
+
+        @media (max-width: 900px) {
+            .masthead-hero {
+                grid-template-columns: 1fr;
+            }
+
+            .masthead-sidebar {
+                display: none;
+            }
+
+            .dp-body {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .pipeline {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .feature-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .doc-body {
+                padding: 3rem 1.5rem;
+            }
+
+            .masthead-main {
+                padding: 2.5rem 2rem;
+            }
+
+            .dataset-nav-float {
+                flex-wrap: wrap;
+                max-width: 90vw;
+                padding: 4px;
+                gap: 2px;
+            }
+
+            .dnf-item {
+                padding: 8px 12px;
+            }
+
+            .dnf-name {
+                font-size: 9px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- ═══════ PAGE TRANSITION OVERLAY ═══════ -->
+    <div class="page-transition-overlay" id="pageTransition">
+        <div class="pto-slice"></div>
+        <div class="pto-slice"></div>
+        <div class="pto-slice"></div>
+        <div class="pto-slice"></div>
+        <div class="pto-slice"></div>
+        <div class="pto-label">
+            <div class="pto-label-name" id="ptoName"></div>
+            <div class="pto-label-sub" id="ptoSub">Loading Dataset Report</div>
+            <div class="pto-spinner">
+                <div class="pto-spinner-dot"></div>
+                <div class="pto-spinner-dot"></div>
+                <div class="pto-spinner-dot"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════ FLOATING DATASET NAV ═══════ -->
+    <div class="dataset-nav-float" id="datasetNavFloat">
+        <div class="dnf-item" data-ds="isot" data-page="isot.html" data-name="ISOT" data-color="var(--isot)">
+            <div class="dnf-dot"></div>
+            <span class="dnf-name">ISOT</span>
+            <span class="dnf-arrow">→</span>
+        </div>
+        <div class="dnf-item" data-ds="fnd" data-page="fnd.html" data-name="Kaggle FND" data-color="var(--fnd)">
+            <div class="dnf-dot"></div>
+            <span class="dnf-name">Kaggle FND</span>
+            <span class="dnf-arrow">→</span>
+        </div>
+        <div class="dnf-item" data-ds="liar" data-page="liar.html" data-name="LIAR" data-color="var(--liar)">
+            <div class="dnf-dot"></div>
+            <span class="dnf-name">LIAR</span>
+            <span class="dnf-arrow">→</span>
+        </div>
+        <div class="dnf-item" data-ds="fnn" data-page="fakenewsnet.html" data-name="FakeNewsNet"
+            data-color="var(--fnn)">
+            <div class="dnf-dot"></div>
+            <span class="dnf-name">FakeNewsNet</span>
+            <span class="dnf-arrow">→</span>
+        </div>
+    </div>
+
+    <div id="scroll-bar"></div>
+    <button id="back-top" title="Back to top">↑</button>
+
+    <div class="masthead">
+        <div class="masthead-top-bar">
+            <div class="masthead-top-date">TECHNICAL DATASET REPORT · NLP / INFORMATION VERIFICATION · 2024</div>
+            <div class="masthead-top-tags">
+                <span class="masthead-tag">Compiled by Rakesh Raut</span>
+                <span class="masthead-tag">github.com/Rex1671</span>
+            </div>
+        </div>
+
+        <div class="masthead-hero">
+            <div class="masthead-main">
+                <div class="masthead-category">Fake News Detection Benchmarks</div>
+
+                <h1 class="masthead-title">
+                    Four <em>Foundational</em><br>Datasets for<br>Misinformation<br>Research
+                </h1>
+
+                <div class="masthead-deck">
+                    A unified technical reference covering ISOT, Kaggle FND, LIAR, and FakeNewsNet — the benchmark
+                    corpora powering modern misinformation detection, credibility scoring, and claim verification
+                    research.
+                </div>
+
+                <div class="masthead-stats-row">
+                    <div class="masthead-stat">
+                        <span class="masthead-stat-val">~120K</span>
+                        <span class="masthead-stat-label">Combined Articles</span>
+                    </div>
+                    <div class="masthead-stat">
+                        <span class="masthead-stat-val">4</span>
+                        <span class="masthead-stat-label">Datasets</span>
+                    </div>
+                    <div class="masthead-stat">
+                        <span class="masthead-stat-val">6</span>
+                        <span class="masthead-stat-label">LIAR Label Classes</span>
+                    </div>
+                    <div class="masthead-stat">
+                        <span class="masthead-stat-val">2</span>
+                        <span class="masthead-stat-label">Social Platforms (FNN)</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="masthead-sidebar">
+                <div
+                    style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:0.2em;text-transform:uppercase;color:rgba(249,245,239,0.25);margin-bottom:0.5rem;">
+                    Datasets Covered — Click to Explore</div>
+
+                <div class="sidebar-dataset-card" data-page="isot.html" data-name="ISOT" data-color="#c0392b">
+                    <div class="sdc-inner">
+                        <div class="sdc-num">01</div>
+                        <div class="sdc-name">ISOT</div>
+                        <span class="sdc-tag isot">Binary · 44K Articles</span>
+                        <div class="sdc-explore">
+                            <span>Explore full report</span>
+                            <span class="sdc-explore-arrow">→</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="sidebar-dataset-card" data-page="fnd.html" data-name="Kaggle FND" data-color="#1a5276">
+                    <div class="sdc-inner">
+                        <div class="sdc-num">02</div>
+                        <div class="sdc-name">Kaggle FND</div>
+                        <span class="sdc-tag fnd">Binary · ~20K Headlines</span>
+                        <div class="sdc-explore">
+                            <span>Explore full report</span>
+                            <span class="sdc-explore-arrow">→</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="sidebar-dataset-card" data-page="liar.html" data-name="LIAR" data-color="#145a32">
+                    <div class="sdc-inner">
+                        <div class="sdc-num">03</div>
+                        <div class="sdc-name">LIAR</div>
+                        <span class="sdc-tag liar">6-Class · 12.8K Statements</span>
+                        <div class="sdc-explore">
+                            <span>Explore full report</span>
+                            <span class="sdc-explore-arrow">→</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="sidebar-dataset-card" data-page="fakenewsnet.html" data-name="FakeNewsNet"
+                    data-color="#6c3483">
+                    <div class="sdc-inner">
+                        <div class="sdc-num">04</div>
+                        <div class="sdc-name">FakeNewsNet</div>
+                        <span class="sdc-tag fnn">Graph+Social · ~23K Articles</span>
+                        <div class="sdc-explore">
+                            <span>Explore full report</span>
+                            <span class="sdc-explore-arrow">→</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="doc-body">
+
+        <div class="section">
+            <div class="section-rule">
+                <span class="section-num">01 —</span>
+                <h2 class="section-title">Executive Summary</h2>
+            </div>
+
+            <p>Fake news detection is one of the most consequential tasks in applied NLP. Unlike many classification
+                problems, it requires models to grapple with linguistic nuance, social context, credibility signals,
+                and knowledge-grounded claim verification simultaneously. The four datasets covered in this report
+                represent distinct methodological traditions in how the field has framed this problem.</p>
+
+            <p>ISOT and Kaggle FND treat fake news as a binary classification problem over article text — clean,
+                large, and easy to use but limited by topic concentration and the absence of nuanced veracity
+                distinctions. LIAR pushes beyond binary labels, offering six fine-grained truthfulness classes drawn
+                from a decade of PolitiFact ratings with extensive speaker metadata. FakeNewsNet goes furthest,
+                combining article content with social network propagation graphs and user engagement data from
+                GossipCop and PolitiFact.</p>
+
+            <div class="callout info">
+                <div class="callout-label">Why These Four</div>
+                <p>Together these datasets cover the full methodological spectrum: binary text classification,
+                    fine-grained claim verification, and graph-based social propagation analysis. A model
+                    benchmarked on all four must demonstrate linguistic understanding, credibility reasoning, and
+                    social signal processing — the three pillars of robust misinformation detection.</p>
+            </div>
+
+            <table class="comp-table reveal">
+                <thead>
+                    <tr>
+                        <th>Dataset</th>
+                        <th>Size</th>
+                        <th>Labels</th>
+                        <th>Modality</th>
+                        <th>Primary Task</th>
+                        <th>Source Domain</th>
+                        <th>Public</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><span class="td-name dot-isot">ISOT</span></td>
+                        <td>44,898</td>
+                        <td><span class="badge b-binary">Binary</span></td>
+                        <td>Text</td>
+                        <td>Fake/Real classification</td>
+                        <td>Reuters / Unreliable sites</td>
+                        <td>✓ Kaggle</td>
+                    </tr>
+                    <tr>
+                        <td><span class="td-name dot-fnd">Kaggle FND</span></td>
+                        <td>~20,800</td>
+                        <td><span class="badge b-binary">Binary</span></td>
+                        <td>Text</td>
+                        <td>Headline verification</td>
+                        <td>Various news outlets</td>
+                        <td>✓ Kaggle</td>
+                    </tr>
+                    <tr>
+                        <td><span class="td-name dot-liar">LIAR</span></td>
+                        <td>12,836</td>
+                        <td><span class="badge b-multi">6-Class</span></td>
+                        <td>Text + Meta</td>
+                        <td>Claim veracity grading</td>
+                        <td>PolitiFact statements</td>
+                        <td>✓ UCSB</td>
+                    </tr>
+                    <tr>
+                        <td><span class="td-name dot-fnn">FakeNewsNet</span></td>
+                        <td>~23,000</td>
+                        <td><span class="badge b-graph">Graph+Text</span></td>
+                        <td>Text + Social</td>
+                        <td>Propagation-aware detection</td>
+                        <td>PolitiFact + GossipCop</td>
+                        <td>✓ GitHub</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- ═══════ ISOT SECTION ═══════ -->
+        <div class="section">
+            <div class="section-rule">
+                <span class="section-num">02 —</span>
+                <h2 class="section-title">ISOT Fake News Dataset</h2>
+            </div>
+
+            <p>Developed at the Information Security and Object Technology (ISOT) Research Lab at the University of
+                Victoria, Canada, the ISOT dataset is the workhorse binary classifier benchmark of the field. Its
+                clean collection methodology — real news from Reuters, fake news from sites flagged by
+                fact-checking agencies — makes it the go-to starting point for fake news classifiers.</p>
+
+            <div class="dataset-profile reveal">
+                <div class="dp-stripe isot"></div>
+                <div class="dp-header">
+                    <div>
+                        <div class="dp-name" style="color:var(--isot);">ISOT</div>
+                        <div class="dp-fullname">ISOT Fake News Dataset — University of Victoria, Canada</div>
+                    </div>
+                    <div class="dp-badge-cluster">
+                        <span class="dp-badge"
+                            style="background:rgba(192,57,43,0.1);color:var(--isot);border:1px solid rgba(192,57,43,0.25);">Binary
+                            Classification</span>
+                        <span class="dp-badge"
+                            style="background:rgba(26,18,8,0.06);color:var(--muted);border:1px solid var(--rule);">2019</span>
+                    </div>
+                </div>
+
+                <div class="dp-body">
+                    <div class="dp-col">
+                        <div class="dp-col-label">Total Articles</div>
+                        <div class="dp-col-val" style="color:var(--isot);">44,898</div>
+                        <div class="dp-col-desc">23,481 real + 21,417 fake articles, each with title, text,
+                            subject, and date fields</div>
+                    </div>
+                    <div class="dp-col">
+                        <div class="dp-col-label">Real Source</div>
+                        <div class="dp-col-val" style="font-size:1.3rem;color:var(--ink);">Reuters</div>
+                        <div class="dp-col-desc">World news & politics from Reuters.com — high editorial
+                            standards, bylined journalism</div>
+                    </div>
+                    <div class="dp-col">
+                        <div class="dp-col-label">Fake Sources</div>
+                        <div class="dp-col-val" style="font-size:1.3rem;color:var(--ink);">5+ Sites</div>
+                        <div class="dp-col-desc">Sites flagged by Politifact, Wikipedia, and fact-checking
+                            organisations as systematically unreliable</div>
+                    </div>
+                </div>
+
+                <div class="class-bars">
+                    <div class="class-bar-row">
+                        <div class="class-bar-label"><span>REAL (Reuters)</span><span>23,481 — 52.3%</span></div>
+                        <div class="class-bar-track">
+                            <div class="class-bar-fill fill-real" style="--w:52.3%"></div>
+                        </div>
+                    </div>
+                    <div class="class-bar-row">
+                        <div class="class-bar-label"><span>FAKE (unreliable sites)</span><span>21,417 —
+                                47.7%</span></div>
+                        <div class="class-bar-track">
+                            <div class="class-bar-fill fill-fake" style="--w:47.7%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dp-footer">
+                    <div class="dp-footer-label">Key Characteristics</div>
+                    <div class="dp-footer-text">Long-form article text. Near-balanced classes. Two CSV files
+                        (True.csv, Fake.csv) with columns: title, text, subject, date. Topic concentrated in US
+                        politics (2016–2018) and world news.</div>
+                    <div class="dp-footer-label" style="margin-top:0.8rem;">Known Limitations</div>
+                    <div class="dp-footer-text">Source-level labelling can cause models to learn outlet-level style
+                        rather than claim-level veracity. Subject field leakage: always ablate or drop this field.
+                    </div>
+                </div>
+
+                <!-- EXPLORE BAR -->
+                <div class="dp-explore-bar isot" data-page="isot.html" data-name="ISOT" data-color="#c0392b">
+                    <div class="dp-explore-content">
+                        <div class="dp-explore-text">
+                            <div>
+                                <div class="dp-explore-label">Explore ISOT Dataset</div>
+                                <div class="dp-explore-sublabel">Full analysis, code samples & benchmarks</div>
+                            </div>
+                        </div>
+                        <div class="dp-explore-icon">
+                            <span class="dp-explore-icon-arrow">→</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="callout warn">
+                <div class="callout-label">Critical Note for Practitioners</div>
+                <p>ISOT's subject distribution is heavily skewed: fake articles cluster in "News" and "politics"
+                    while real articles appear across many subjects. Models trained without dropping the subject
+                    field routinely achieve >99% accuracy — measuring topic identification, not fake news
+                    detection.</p>
+            </div>
+        </div>
+
+        <!-- ═══════ KAGGLE FND SECTION ═══════ -->
+        <div class="section">
+            <div class="section-rule">
+                <span class="section-num">03 —</span>
+                <h2 class="section-title">Kaggle Fake News Dataset (FND)</h2>
+            </div>
+
+            <p>The Kaggle Fake News Dataset — popularised through Kaggle competitions — is a pragmatic binary
+                classification corpus focused on headline-level and short-form detection.</p>
+
+            <div class="dataset-profile reveal">
+                <div class="dp-stripe fnd"></div>
+                <div class="dp-header">
+                    <div>
+                        <div class="dp-name" style="color:var(--fnd);">Kaggle FND</div>
+                        <div class="dp-fullname">Kaggle Fake News Dataset — Competitive NLP Benchmark</div>
+                    </div>
+                    <div class="dp-badge-cluster">
+                        <span class="dp-badge"
+                            style="background:rgba(26,82,118,0.1);color:var(--fnd);border:1px solid rgba(26,82,118,0.25);">Binary
+                            Classification</span>
+                        <span class="dp-badge"
+                            style="background:rgba(26,18,8,0.06);color:var(--muted);border:1px solid var(--rule);">Kaggle</span>
+                    </div>
+                </div>
+
+                <div class="dp-body">
+                    <div class="dp-col">
+                        <div class="dp-col-label">Total Records</div>
+                        <div class="dp-col-val" style="color:var(--fnd);">~20,800</div>
+                        <div class="dp-col-desc">Split across train.csv (~20K) and test.csv (~5.2K) with title,
+                            author, text, and label columns</div>
+                    </div>
+                    <div class="dp-col">
+                        <div class="dp-col-label">Train Split</div>
+                        <div class="dp-col-val" style="font-size:1.3rem;color:var(--ink);">20,800</div>
+                        <div class="dp-col-desc">Labelled training examples; test set is held-out with labels
+                            provided post-submission</div>
+                    </div>
+                    <div class="dp-col">
+                        <div class="dp-col-label">Fields Available</div>
+                        <div class="dp-col-val" style="font-size:1.3rem;color:var(--ink);">5</div>
+                        <div class="dp-col-desc">id, title, author, text, label (0=real, 1=fake) — author field
+                            frequently missing (~40%)</div>
+                    </div>
+                </div>
+
+                <div class="class-bars">
+                    <div class="class-bar-row">
+                        <div class="class-bar-label"><span>REAL articles</span><span>~10,387 — 50%</span></div>
+                        <div class="class-bar-track">
+                            <div class="class-bar-fill fill-a" style="--w:50%"></div>
+                        </div>
+                    </div>
+                    <div class="class-bar-row">
+                        <div class="class-bar-label"><span>FAKE articles</span><span>~10,413 — 50%</span></div>
+                        <div class="class-bar-track">
+                            <div class="class-bar-fill fill-fake" style="--w:50%"></div>
+                        </div>
+                    </div>
+                    <div class="class-bar-row">
+                        <div class="class-bar-label"><span>Missing author field</span><span>~40%</span></div>
+                        <div class="class-bar-track">
+                            <div class="class-bar-fill fill-half" style="--w:40%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dp-footer">
+                    <div class="dp-footer-label">Best Use Cases</div>
+                    <div class="dp-footer-text">Rapid prototyping, competition benchmarking, and headline-level
+                        feature ablations. Well-suited for comparing TF-IDF + classical ML against transformer
+                        approaches.</div>
+                    <div class="dp-footer-label" style="margin-top:0.8rem;">Known Limitations</div>
+                    <div class="dp-footer-text">Heterogeneous source provenance, frequent missing author metadata,
+                        and limited temporal or topical documentation.</div>
+                </div>
+
+                <!-- EXPLORE BAR -->
+                <div class="dp-explore-bar fnd" data-page="fnd.html" data-name="Kaggle FND" data-color="#1a5276">
+                    <div class="dp-explore-content">
+                        <div class="dp-explore-text">
+                            <div>
+                                <div class="dp-explore-label">Explore Kaggle FND Dataset</div>
+                                <div class="dp-explore-sublabel">Full analysis, code samples & benchmarks</div>
+                            </div>
+                        </div>
+                        <div class="dp-explore-icon">
+                            <span class="dp-explore-icon-arrow">→</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="feature-grid stagger">
+                <div class="feature-cell">
+                    <div class="feature-icon">📰</div>
+                    <div class="feature-title">Title + Full Text</div>
+                    <div class="feature-desc">Both headline and body text available, enabling headline-only vs.
+                        full-document experiments.</div>
+                </div>
+                <div class="feature-cell">
+                    <div class="feature-icon">✍️</div>
+                    <div class="feature-title">Author Attribution</div>
+                    <div class="feature-desc">Author name included (when present) — enables author credibility
+                        signal experiments.</div>
+                </div>
+                <div class="feature-cell">
+                    <div class="feature-icon">⚖️</div>
+                    <div class="feature-title">Balanced Classes</div>
+                    <div class="feature-desc">Near-perfect 50/50 class balance reduces the need for oversampling
+                        strategies.</div>
+                </div>
+                <div class="feature-cell">
+                    <div class="feature-icon">🏆</div>
+                    <div class="feature-title">Benchmarked</div>
+                    <div class="feature-desc">Hundreds of published results from Kaggle competitions and academic
+                        papers.</div>
+                </div>
+                <div class="feature-cell">
+                    <div class="feature-icon">🔌</div>
+                    <div class="feature-title">Kaggle API</div>
+                    <div class="feature-desc">One-line download via Kaggle CLI, making it the easiest dataset to
+                        integrate.</div>
+                </div>
+                <div class="feature-cell">
+                    <div class="feature-icon">🔗</div>
+                    <div class="feature-title">Competition Splits</div>
+                    <div class="feature-desc">Standardised train/test splits from the Kaggle competition ensure
+                        comparable results.</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══════ LIAR SECTION ═══════ -->
+        <div class="section">
+            <div class="section-rule">
+                <span class="section-num">04 —</span>
+                <h2 class="section-title">LIAR Dataset</h2>
+            </div>
+
+            <p>Published by William Yang Wang (EMNLP 2017, University of California Santa Barbara), LIAR is the
+                field's gold standard for fine-grained claim veracity classification. Unlike binary datasets, LIAR
+                uses six truthfulness labels drawn from a decade of PolitiFact fact-checks.</p>
+
+            <div class="dataset-profile reveal">
+                <div class="dp-stripe liar"></div>
+                <div class="dp-header">
+                    <div>
+                        <div class="dp-name" style="color:var(--liar);">LIAR</div>
+                        <div class="dp-fullname">"Liar, Liar Pants on Fire" — Wang (2017), UCSB · EMNLP 2017
+                        </div>
+                    </div>
+                    <div class="dp-badge-cluster">
+                        <span class="dp-badge"
+                            style="background:rgba(20,90,50,0.1);color:var(--liar);border:1px solid rgba(20,90,50,0.25);">6-Class
+                            Veracity</span>
+                        <span class="dp-badge"
+                            style="background:rgba(26,18,8,0.06);color:var(--muted);border:1px solid var(--rule);">EMNLP
+                            2017</span>
+                    </div>
+                </div>
+
+                <div class="dp-body">
+                    <div class="dp-col">
+                        <div class="dp-col-label">Total Statements</div>
+                        <div class="dp-col-val" style="color:var(--liar);">12,836</div>
+                        <div class="dp-col-desc">Train: 10,269 · Val: 1,284 · Test: 1,283 — sourced from a
+                            decade of PolitiFact.com fact checks</div>
+                    </div>
+                    <div class="dp-col">
+                        <div class="dp-col-label">Label Classes</div>
+                        <div class="dp-col-val" style="font-size:1.3rem;color:var(--ink);">6</div>
+                        <div class="dp-col-desc">pants-fire, false, barely-true, half-true, mostly-true, true
+                        </div>
+                    </div>
+                    <div class="dp-col">
+                        <div class="dp-col-label">Metadata Fields</div>
+                        <div class="dp-col-val" style="font-size:1.3rem;color:var(--ink);">14</div>
+                        <div class="dp-col-desc">Speaker name, job title, state, party affiliation, context,
+                            subject, and historical credit counts</div>
+                    </div>
+                </div>
+
+                <div class="class-bars">
+                    <div class="class-bar-row">
+                        <div class="class-bar-label"><span>pants-fire (most false)</span><span>~14%</span></div>
+                        <div class="class-bar-track">
+                            <div class="class-bar-fill fill-fake" style="--w:14%"></div>
+                        </div>
+                    </div>
+                    <div class="class-bar-row">
+                        <div class="class-bar-label"><span>false</span><span>~19%</span></div>
+                        <div class="class-bar-track">
+                            <div class="class-bar-fill fill-fake" style="--w:19%;opacity:0.75"></div>
+                        </div>
+                    </div>
+                    <div class="class-bar-row">
+                        <div class="class-bar-label"><span>barely-true</span><span>~17%</span></div>
+                        <div class="class-bar-track">
+                            <div class="class-bar-fill fill-d" style="--w:17%"></div>
+                        </div>
+                    </div>
+                    <div class="class-bar-row">
+                        <div class="class-bar-label"><span>half-true</span><span>~20%</span></div>
+                        <div class="class-bar-track">
+                            <div class="class-bar-fill fill-half" style="--w:20%"></div>
+                        </div>
+                    </div>
+                    <div class="class-bar-row">
+                        <div class="class-bar-label"><span>mostly-true</span><span>~17%</span></div>
+                        <div class="class-bar-track">
+                            <div class="class-bar-fill fill-real" style="--w:17%;opacity:0.75"></div>
+                        </div>
+                    </div>
+                    <div class="class-bar-row">
+                        <div class="class-bar-label"><span>true (most true)</span><span>~13%</span></div>
+                        <div class="class-bar-track">
+                            <div class="class-bar-fill fill-real" style="--w:13%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dp-footer">
+                    <div class="dp-footer-label">Unique Metadata Signals</div>
+                    <div class="dp-footer-text">Each record includes speaker's historical label counts across all
+                        six categories. This "credit history" is a powerful prior for credibility-aware models.
+                    </div>
+                    <div class="dp-footer-label" style="margin-top:0.8rem;">Benchmark Accuracy (Test Set)</div>
+                    <div class="dp-footer-text">Vanilla LSTM: ~27% · BERT fine-tuned: ~28–33% · Best reported
+                        with metadata fusion: ~37%. Human accuracy ~57%.</div>
+                </div>
+
+                <!-- EXPLORE BAR -->
+                <div class="dp-explore-bar liar" data-page="liar.html" data-name="LIAR" data-color="#145a32">
+                    <div class="dp-explore-content">
+                        <div class="dp-explore-text">
+                            <div>
+                                <div class="dp-explore-label">Explore LIAR Dataset</div>
+                                <div class="dp-explore-sublabel">Full analysis, code samples & benchmarks</div>
+                            </div>
+                        </div>
+                        <div class="dp-explore-icon">
+                            <span class="dp-explore-icon-arrow">→</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="callout tip">
+                <div class="callout-label">Research Insight</div>
+                <p>The credit history vector consistently improves model performance when fused with textual
+                    features. A simple logistic regression on credit history alone achieves ~20%.</p>
+            </div>
+
+            <div class="chart-box reveal">
+                <div class="chart-title">LIAR — 6-Class Veracity Distribution (12,836 Statements)</div>
+                <svg width="100%" height="200" viewBox="0 0 720 200" preserveAspectRatio="xMidYMid meet"
+                    style="display:block;min-height:200px;">
+                    <line x1="160" y1="10" x2="160" y2="160" stroke="#1a1208" stroke-width="1.5" />
+                    <line x1="160" y1="160" x2="700" y2="160" stroke="#1a1208" stroke-width="1.5" />
+                    <line x1="160" y1="60" x2="700" y2="60" stroke="#d9cfc2" stroke-width="0.8"
+                        stroke-dasharray="3,3" />
+                    <line x1="160" y1="110" x2="700" y2="110" stroke="#d9cfc2" stroke-width="0.8"
+                        stroke-dasharray="3,3" />
+                    <text x="152" y="14" font-family="IBM Plex Mono,monospace" font-size="8" fill="#7a6e5f"
+                        text-anchor="end">2500</text>
+                    <text x="152" y="64" font-family="IBM Plex Mono,monospace" font-size="8" fill="#7a6e5f"
+                        text-anchor="end">1500</text>
+                    <text x="152" y="114" font-family="IBM Plex Mono,monospace" font-size="8" fill="#7a6e5f"
+                        text-anchor="end">750</text>
+                    <rect x="175" y="52" width="70" height="108" fill="#c0392b" />
+                    <text x="210" y="178" font-family="IBM Plex Mono,monospace" font-size="8" fill="#7a6e5f"
+                        text-anchor="middle">pants-fire</text>
+                    <text x="210" y="47" font-family="IBM Plex Mono,monospace" font-size="9" fill="#c0392b"
+                        text-anchor="middle" font-weight="500">1,791</text>
+                    <rect x="283" y="22" width="70" height="138" fill="#c0392b" opacity="0.7" />
+                    <text x="318" y="178" font-family="IBM Plex Mono,monospace" font-size="8" fill="#7a6e5f"
+                        text-anchor="middle">false</text>
+                    <text x="318" y="17" font-family="IBM Plex Mono,monospace" font-size="9" fill="#c0392b"
+                        text-anchor="middle" font-weight="500">2,413</text>
+                    <rect x="391" y="40" width="70" height="120" fill="#7d6608" />
+                    <text x="426" y="178" font-family="IBM Plex Mono,monospace" font-size="8" fill="#7a6e5f"
+                        text-anchor="middle">barely-true</text>
+                    <text x="426" y="35" font-family="IBM Plex Mono,monospace" font-size="9" fill="#7d6608"
+                        text-anchor="middle" font-weight="500">2,108</text>
+                    <rect x="499" y="14" width="70" height="146" fill="#2c3e50" />
+                    <text x="534" y="178" font-family="IBM Plex Mono,monospace" font-size="8" fill="#7a6e5f"
+                        text-anchor="middle">half-true</text>
+                    <text x="534" y="9" font-family="IBM Plex Mono,monospace" font-size="9" fill="#2c3e50"
+                        text-anchor="middle" font-weight="500">2,627</text>
+                    <rect x="607" y="40" width="44" height="120" fill="#145a32" opacity="0.8" />
+                    <text x="629" y="178" font-family="IBM Plex Mono,monospace" font-size="8" fill="#7a6e5f"
+                        text-anchor="middle">mostly-true</text>
+                    <text x="629" y="35" font-family="IBM Plex Mono,monospace" font-size="9" fill="#145a32"
+                        text-anchor="middle" font-weight="500">2,078</text>
+                    <text x="690" y="178" font-family="IBM Plex Mono,monospace" font-size="8" fill="#7a6e5f"
+                        text-anchor="middle">true →</text>
+                    <text x="700" y="95" font-family="IBM Plex Mono,monospace" font-size="8" fill="#145a32"
+                        text-anchor="middle">1,819</text>
+                </svg>
+            </div>
+        </div>
+
+        <!-- ═══════ FAKENEWSNET SECTION ═══════ -->
+        <div class="section">
+            <div class="section-rule">
+                <span class="section-num">05 —</span>
+                <h2 class="section-title">FakeNewsNet</h2>
+            </div>
+
+            <p>FakeNewsNet (Shu et al., 2018 / 2020, Arizona State University) is the most comprehensive and
+                architecturally sophisticated of the four datasets. It combines article content with social media
+                propagation networks from both GossipCop and PolitiFact.</p>
+
+            <div class="dataset-profile reveal">
+                <div class="dp-stripe fnn"></div>
+                <div class="dp-header">
+                    <div>
+                        <div class="dp-name" style="color:var(--fnn);">FakeNewsNet</div>
+                        <div class="dp-fullname">FakeNewsNet — Shu, Sliva, Wang, Tang, Liu (2020) · Arizona
+                            State University</div>
+                    </div>
+                    <div class="dp-badge-cluster">
+                        <span class="dp-badge"
+                            style="background:rgba(108,52,131,0.1);color:var(--fnn);border:1px solid rgba(108,52,131,0.25);">Graph
+                            + Text</span>
+                        <span class="dp-badge"
+                            style="background:rgba(26,18,8,0.06);color:var(--muted);border:1px solid var(--rule);">2020</span>
+                    </div>
+                </div>
+
+                <div class="dp-body">
+                    <div class="dp-col">
+                        <div class="dp-col-label">Total Articles</div>
+                        <div class="dp-col-val" style="color:var(--fnn);">~23,000</div>
+                        <div class="dp-col-desc">PolitiFact: ~1,000 articles + GossipCop: ~22,000 articles</div>
+                    </div>
+                    <div class="dp-col">
+                        <div class="dp-col-label">Social Data</div>
+                        <div class="dp-col-val" style="font-size:1.2rem;color:var(--ink);">Tweets + Graph</div>
+                        <div class="dp-col-desc">User sharing networks, follower graphs, tweet text and
+                            metadata, and engagement timelines</div>
+                    </div>
+                    <div class="dp-col">
+                        <div class="dp-col-label">Sub-Domains</div>
+                        <div class="dp-col-val" style="font-size:1.3rem;color:var(--ink);">2</div>
+                        <div class="dp-col-desc">PolitiFact (political news) and GossipCop (entertainment news)
+                        </div>
+                    </div>
+                </div>
+
+                <div class="class-bars">
+                    <div class="class-bar-row">
+                        <div class="class-bar-label"><span>GossipCop — REAL</span><span>~16,817 (75%)</span>
+                        </div>
+                        <div class="class-bar-track">
+                            <div class="class-bar-fill fill-real" style="--w:75%"></div>
+                        </div>
+                    </div>
+                    <div class="class-bar-row">
+                        <div class="class-bar-label"><span>GossipCop — FAKE</span><span>~5,323 (25%)</span>
+                        </div>
+                        <div class="class-bar-track">
+                            <div class="class-bar-fill fill-fake" style="--w:25%"></div>
+                        </div>
+                    </div>
+                    <div class="class-bar-row" style="margin-top:0.6rem;">
+                        <div class="class-bar-label"><span>PolitiFact — REAL</span><span>~624 (62%)</span></div>
+                        <div class="class-bar-track">
+                            <div class="class-bar-fill fill-a" style="--w:62%"></div>
+                        </div>
+                    </div>
+                    <div class="class-bar-row">
+                        <div class="class-bar-label"><span>PolitiFact — FAKE</span><span>~432 (38%)</span></div>
+                        <div class="class-bar-track">
+                            <div class="class-bar-fill fill-b" style="--w:38%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dp-footer">
+                    <div class="dp-footer-label">What Makes FakeNewsNet Unique</div>
+                    <div class="dp-footer-text">Three distinct data views per article: news content, social
+                        context, and spatiotemporal signals. Enables graph neural network approaches (GNN, GAT,
+                        GCNFN, UPFD) impossible on text-only corpora.</div>
+                    <div class="dp-footer-label" style="margin-top:0.8rem;">Key Insight</div>
+                    <div class="dp-footer-text">Fake news spreads faster, deeper, and more broadly than real
+                        news on social networks. Social signal is complementary to linguistic features.</div>
+                </div>
+
+                <!-- EXPLORE BAR -->
+                <div class="dp-explore-bar fnn" data-page="fakenewsnet.html" data-name="FakeNewsNet"
+                    data-color="#6c3483">
+                    <div class="dp-explore-content">
+                        <div class="dp-explore-text">
+                            <div>
+                                <div class="dp-explore-label">Explore FakeNewsNet Dataset</div>
+                                <div class="dp-explore-sublabel">Full analysis, code samples & benchmarks</div>
+                            </div>
+                        </div>
+                        <div class="dp-explore-icon">
+                            <span class="dp-explore-icon-arrow">→</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="callout info">
+                <div class="callout-label">Data Structure — Three View Architecture</div>
+                <p>Each FakeNewsNet article comes with three view types: <strong>news content</strong>,
+                    <strong>social context</strong>, and <strong>spatiotemporal propagation</strong>.
+                </p>
+            </div>
+
+            <div class="chart-box reveal">
+                <div class="chart-title">FakeNewsNet — GossipCop vs PolitiFact Scale Comparison</div>
+                <svg width="100%" height="160" viewBox="0 0 720 160" preserveAspectRatio="xMidYMid meet"
+                    style="display:block;min-height:160px;">
+                    <text x="10" y="45" font-family="IBM Plex Mono,monospace" font-size="10"
+                        fill="#7a6e5f">GossipCop</text>
+                    <rect x="120" y="22" width="521" height="28" fill="#145a32" opacity="0.8" />
+                    <text x="648" y="41" font-family="IBM Plex Mono,monospace" font-size="10" fill="#145a32"
+                        font-weight="500">16,817 REAL</text>
+                    <rect x="120" y="54" width="165" height="20" fill="#c0392b" opacity="0.75" />
+                    <text x="292" y="69" font-family="IBM Plex Mono,monospace" font-size="10" fill="#c0392b"
+                        font-weight="500">5,323 FAKE</text>
+                    <text x="10" y="115" font-family="IBM Plex Mono,monospace" font-size="10"
+                        fill="#7a6e5f">PolitiFact</text>
+                    <rect x="120" y="90" width="192" height="20" fill="#1a5276" opacity="0.8" />
+                    <text x="318" y="105" font-family="IBM Plex Mono,monospace" font-size="10" fill="#1a5276"
+                        font-weight="500">624 REAL</text>
+                    <rect x="120" y="114" width="133" height="16" fill="#6c3483" opacity="0.75" />
+                    <text x="260" y="127" font-family="IBM Plex Mono,monospace" font-size="10" fill="#6c3483"
+                        font-weight="500">432 FAKE</text>
+                    <line x1="120" y1="10" x2="120" y2="140" stroke="#1a1208" stroke-width="1.5" />
+                </svg>
+            </div>
+        </div>
+
+        <!-- ═══════ PIPELINE SECTION ═══════ -->
+        <div class="section">
+            <div class="section-rule">
+                <span class="section-num">06 —</span>
+                <h2 class="section-title">Combined Dataset Pipeline</h2>
+            </div>
+
+            <p>Research that evaluates models across all four datasets requires careful attention to schema
+                harmonisation. The pipeline below standardises all four into a unified format.</p>
+
+            <div class="pipeline stagger">
+                <div class="pipe-step">
+                    <div class="pipe-step-num">01</div>
+                    <div class="pipe-step-title">Load & Schema Map</div>
+                    <div class="pipe-step-desc">Load each dataset's CSV/TSV. Map labels to a common scheme. Add
+                        a source_dataset column.</div>
+                </div>
+                <div class="pipe-step">
+                    <div class="pipe-step-num">02</div>
+                    <div class="pipe-step-title">Text Normalise</div>
+                    <div class="pipe-step-desc">Lowercase, strip HTML/URLs, normalise whitespace, handle
+                        Unicode. Truncate to 512 tokens.</div>
+                </div>
+                <div class="pipe-step">
+                    <div class="pipe-step-num">03</div>
+                    <div class="pipe-step-title">Stratified Split</div>
+                    <div class="pipe-step-desc">Stratify by label AND source_dataset. Use 70/15/15
+                        train/val/test or respect existing splits.</div>
+                </div>
+                <div class="pipe-step">
+                    <div class="pipe-step-num">04</div>
+                    <div class="pipe-step-title">Encode & Batch</div>
+                    <div class="pipe-step-desc">Tokenise with HuggingFace AutoTokenizer. Apply class-weighted
+                        loss for imbalanced sub-corpora.</div>
+                </div>
+            </div>
+
+            <div class="code-block">
+                <pre><span class="cc"># Unified loader for all 4 datasets → pandas DataFrame</span>
+<span class="ck">import</span> pandas <span class="ck">as</span> pd, os, re
+
+<span class="ck">def</span> load_isot(path: str) -> pd.DataFrame:
+    real = pd.read_csv(f<span class="cs">"{path}/True.csv"</span>).assign(label=<span class="cn">0</span>, src=<span class="cs">"ISOT"</span>)
+    fake = pd.read_csv(f<span class="cs">"{path}/Fake.csv"</span>).assign(label=<span class="cn">1</span>, src=<span class="cs">"ISOT"</span>)
+    df = pd.concat([real, fake]).rename(columns={<span class="cs">"text"</span>: <span class="cs">"content"</span>})
+    <span class="ck">return</span> df[[<span class="cs">"title"</span>,<span class="cs">"content"</span>,<span class="cs">"label"</span>,<span class="cs">"src"</span>]]
+
+<span class="ck">def</span> load_kaggle_fnd(path: str) -> pd.DataFrame:
+    df = pd.read_csv(f<span class="cs">"{path}/train.csv"</span>).dropna(subset=[<span class="cs">"text"</span>])
+    df[<span class="cs">"content"</span>] = (df[<span class="cs">"title"</span>].fillna(<span class="cs">""</span>) + <span class="cs">" "</span> + df[<span class="cs">"text"</span>]).str.strip()
+    <span class="ck">return</span> df[[<span class="cs">"title"</span>,<span class="cs">"content"</span>,<span class="cs">"label"</span>]].assign(src=<span class="cs">"FND"</span>)
+
+<span class="cc"># Combine all into one unified DataFrame</span>
+df = pd.concat([
+    load_isot(<span class="cs">"./isot"</span>),
+    load_kaggle_fnd(<span class="cs">"./kaggle_fnd"</span>),
+], ignore_index=<span class="ck">True</span>)
+
+print(df.groupby([<span class="cs">"src"</span>,<span class="cs">"label"</span>]).size())</pre>
+            </div>
+        </div>
+
+        <!-- ═══════ BENCHMARKS SECTION ═══════ -->
+        <div class="section">
+            <div class="section-rule">
+                <span class="section-num">07 —</span>
+                <h2 class="section-title">Model Benchmarks Across Datasets</h2>
+            </div>
+
+            <p>Published results vary significantly across datasets, reflecting both task difficulty and class
+                distribution differences.</p>
+
+            <table class="comp-table reveal">
+                <thead>
+                    <tr>
+                        <th>Model</th>
+                        <th>ISOT Acc.</th>
+                        <th>Kaggle FND</th>
+                        <th>LIAR (6-class)</th>
+                        <th>FNN GossipCop</th>
+                        <th>FNN PolitiFact</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>TF-IDF + Logistic Regression</td>
+                        <td>95–97%</td>
+                        <td>~90%</td>
+                        <td>22–25%</td>
+                        <td>~79%</td>
+                        <td>~68%</td>
+                    </tr>
+                    <tr>
+                        <td>BiLSTM</td>
+                        <td>97–99%</td>
+                        <td>~92%</td>
+                        <td>24–27%</td>
+                        <td>~80%</td>
+                        <td>~70%</td>
+                    </tr>
+                    <tr>
+                        <td>BERT (fine-tuned)</td>
+                        <td><strong>>99%</strong></td>
+                        <td><strong>~96%</strong></td>
+                        <td>28–33%</td>
+                        <td>~84%</td>
+                        <td>~76%</td>
+                    </tr>
+                    <tr>
+                        <td>BERT + Metadata (LIAR)</td>
+                        <td>—</td>
+                        <td>—</td>
+                        <td>33–37%</td>
+                        <td>—</td>
+                        <td>—</td>
+                    </tr>
+                    <tr>
+                        <td>Graph Neural Network (UPFD)</td>
+                        <td>—</td>
+                        <td>—</td>
+                        <td>—</td>
+                        <td><strong>~90%</strong></td>
+                        <td><strong>~92%</strong></td>
+                    </tr>
+                    <tr>
+                        <td>Ensemble (BERT + GNN + Meta)</td>
+                        <td>—</td>
+                        <td>—</td>
+                        <td>~38%</td>
+                        <td>~91%</td>
+                        <td>~93%</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="callout warn">
+                <div class="callout-label">Benchmarking Caveat</div>
+                <p>ISOT's near-100% BERT accuracy is misleading — the model likely learns publisher style rather
+                    than semantic falsehood. Always evaluate with cross-publisher splits.</p>
+            </div>
+        </div>
+
+        <!-- ═══════ APPLICATIONS SECTION ═══════ -->
+        <div class="section">
+            <div class="section-rule">
+                <span class="section-num">08 —</span>
+                <h2 class="section-title">Applications &amp; Limitations</h2>
+            </div>
+
+            <div class="feature-grid stagger">
+                <div class="feature-cell">
+                    <div class="feature-icon">🗳️</div>
+                    <div class="feature-title">Political Fact-Checking</div>
+                    <div class="feature-desc">LIAR + FakeNewsNet PolitiFact provide political claim veracity
+                        training for automated fact-check assistants.</div>
+                </div>
+                <div class="feature-cell">
+                    <div class="feature-icon">📱</div>
+                    <div class="feature-title">Social Media Moderation</div>
+                    <div class="feature-desc">FakeNewsNet's propagation graphs train models that use sharing
+                        network topology.</div>
+                </div>
+                <div class="feature-cell">
+                    <div class="feature-icon">🎓</div>
+                    <div class="feature-title">Media Literacy Education</div>
+                    <div class="feature-desc">LIAR's fine-grained truthfulness spectrum is useful for tools that
+                        explain <em>why</em> a claim is misleading.</div>
+                </div>
+                <div class="feature-cell">
+                    <div class="feature-icon">🔀</div>
+                    <div class="feature-title">Cross-Domain Generalisation</div>
+                    <div class="feature-desc">Training on ISOT and testing on FakeNewsNet reveals whether
+                        detectors have learned reusable semantic signals.</div>
+                </div>
+                <div class="feature-cell">
+                    <div class="feature-icon">🧩</div>
+                    <div class="feature-title">Multimodal Fusion Research</div>
+                    <div class="feature-desc">FakeNewsNet's three-view design enables cross-modal attention
+                        architectures at the research frontier.</div>
+                </div>
+                <div class="feature-cell">
+                    <div class="feature-icon">⚡</div>
+                    <div class="feature-title">Real-Time Detection APIs</div>
+                    <div class="feature-desc">ISOT and Kaggle FND are the most practical for training production
+                        classifiers deployed as low-latency APIs.</div>
+                </div>
+            </div>
+
+            <div class="callout warn" style="margin-top:2.5rem;">
+                <div class="callout-label">Shared Limitations Across All Four</div>
+                <p><strong>Temporal drift</strong> — all datasets are static snapshots.
+                    <strong>Domain specificity</strong> — ISOT/LIAR are US-politics-heavy.
+                    <strong>Label noise</strong> — even PolitiFact ratings embed human judgement.
+                    <strong>Social data decay</strong> — FakeNewsNet's tweet IDs become invalid over time.
+                    <strong>English-only</strong> — none include non-English content at meaningful scale.
+                </p>
+            </div>
+        </div>
+
+        <div class="citation-box reveal">
+            <div class="citation-box-title">Required Citations</div>
+            <div class="cite-entry">
+                <span class="cite-tag">ISOT</span>
+                Ahmed H., Traore I., Saad S. (2017). "Detection of Online Fake News Using N-Gram Analysis and
+                Machine Learning Techniques." University of Victoria.
+            </div>
+            <div class="cite-entry">
+                <span class="cite-tag">Kaggle FND</span>
+                Kaggle Fake News Competition Dataset. kaggle.com/c/fake-news
+            </div>
+            <div class="cite-entry">
+                <span class="cite-tag">LIAR</span>
+                Wang, W.Y. (2017). "Liar, Liar Pants on Fire: A New Benchmark Dataset for Fake News Detection."
+                <em>ACL 2017</em>. arXiv:1705.00648
+            </div>
+            <div class="cite-entry">
+                <span class="cite-tag">FakeNewsNet</span>
+                Shu K., et al. (2020). "FakeNewsNet: A Data Repository with News Content, Social Context, and
+                Spatiotemporal Information." <em>Big Data</em> 8(3). arXiv:1809.01286
+            </div>
+        </div>
+
+    </div>
+
+    <div class="author-strip reveal">
+        <div class="author-avatar">
+            <img src="https://media.licdn.com/dms/image/v2/D5603AQEsekjn2AZbmQ/profile-displayphoto-scale_400_400/B56ZwVT88PHAAg-/0/1769884080112?e=1773273600&v=beta&t=y83Ygn5dnnwpMpmU-JmOdTro8WexSGVB5WBdrq55thc"
+                alt="Rakesh Raut" class="author-photo"
+                onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+            <div
+                style="display:none;width:100%;height:100%;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-size:1.8rem;font-weight:900;color:white;">
+                RR</div>
+        </div>
+        <div class="author-info">
+            <div class="author-label">Report compiled by</div>
+            <div class="author-name">Rakesh Raut</div>
+            <div class="author-desc">
+                Technical reference covering ISOT, Kaggle FND, LIAR, and FakeNewsNet fake news detection
+                datasets.<br>
+                github.com/Rex1671 · linkedin.com/in/rakeshkumarraut
+            </div>
+        </div>
+        <div class="author-links">
+            <a class="author-link" href="https://github.com/Rex1671/" target="_blank">
+                <div style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="rgba(249,245,239,0.6)">
+                        <path
+                            d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
+                    </svg>
+                </div>
+                <div>
+                    <span class="author-link-platform">GitHub</span>
+                    <span class="author-link-handle">github.com/Rex1671</span>
+                </div>
+            </a>
+            <a class="author-link" href="https://www.linkedin.com/in/rakeshkumarraut/" target="_blank">
+                <div style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="rgba(249,245,239,0.6)">
+                        <path
+                            d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" />
+                    </svg>
+                </div>
+                <div>
+                    <span class="author-link-platform">LinkedIn</span>
+                    <span class="author-link-handle">rakeshkumarraut</span>
+                </div>
+            </a>
+
+        </div>
+    </div>
+
+    <div class="doc-footer">
+        FAKE NEWS DETECTION DATASETS — TECHNICAL REPORT · Compiled by Rakesh Raut · github.com/Rex1671 · ISOT ·
+        Kaggle FND · LIAR (ACL 2017) · FakeNewsNet (2020)
+    </div>
+
+    <script>
+        // ═══════════════════════════════════════════════
+        // PAGE TRANSITION ENGINE
+        // ═══════════════════════════════════════════════
+
+        const colorMap = {
+            'isot.html': '#c0392b',
+            'fnd.html': '#1a5276',
+            'liar.html': '#145a32',
+            'fakenewsnet.html': '#6c3483'
+        };
+
+        function navigateWithTransition(page, name, color) {
+            const overlay = document.getElementById('pageTransition');
+            const slices = overlay.querySelectorAll('.pto-slice');
+            const labelName = document.getElementById('ptoName');
+            const labelSub = document.getElementById('ptoSub');
+
+            // Set color for slices
+            const resolvedColor = color.startsWith('var(')
+                ? getComputedStyle(document.documentElement).getPropertyValue(color.replace('var(', '').replace(')', '')).trim()
+                : color;
+
+            slices.forEach(s => {
+                s.style.background = resolvedColor || colorMap[page] || '#1a1208';
+            });
+
+            labelName.textContent = name;
+            labelSub.textContent = 'Loading Dataset Report';
+
+            // Activate transition
+            overlay.classList.add('active');
+
+            // Navigate after animation completes
+            setTimeout(() => {
+                window.location.href = page;
+            }, 1100);
+        }
+
+        // ═══════════════════════════════════════════════
+        // RIPPLE EFFECT
+        // ═══════════════════════════════════════════════
+
+        function createRipple(e, el, color) {
+            const ripple = document.createElement('div');
+            ripple.classList.add('ripple');
+            const rect = el.getBoundingClientRect();
+            const size = Math.max(rect.width, rect.height) * 2;
+            ripple.style.width = ripple.style.height = size + 'px';
+            ripple.style.left = (e.clientX - rect.left - size / 2) + 'px';
+            ripple.style.top = (e.clientY - rect.top - size / 2) + 'px';
+            ripple.style.background = color || 'rgba(255,255,255,0.15)';
+            el.appendChild(ripple);
+            setTimeout(() => ripple.remove(), 700);
+        }
+
+        // ═══════════════════════════════════════════════
+        // SIDEBAR CARD CLICK HANDLERS
+        // ═══════════════════════════════════════════════
+
+        document.querySelectorAll('.sidebar-dataset-card[data-page]').forEach(card => {
+            card.addEventListener('click', function (e) {
+                const page = this.dataset.page;
+                const name = this.dataset.name;
+                const color = this.dataset.color;
+                createRipple(e, this, 'rgba(255,255,255,0.1)');
+                setTimeout(() => navigateWithTransition(page, name, color), 200);
+            });
+
+            // Magnetic hover effect
+            card.addEventListener('mousemove', function (e) {
+                const rect = this.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                const centerX = rect.width / 2;
+                const centerY = rect.height / 2;
+                const deltaX = (x - centerX) / centerX * 4;
+                const deltaY = (y - centerY) / centerY * 3;
+                this.style.transform = `translateX(${6 + deltaX}px) translateY(${deltaY}px)`;
+            });
+
+            card.addEventListener('mouseleave', function () {
+                this.style.transform = '';
+            });
+        });
+
+        // ═══════════════════════════════════════════════
+        // DATASET PROFILE EXPLORE BAR CLICK HANDLERS
+        // ═══════════════════════════════════════════════
+
+        document.querySelectorAll('.dp-explore-bar[data-page]').forEach(bar => {
+            bar.addEventListener('click', function (e) {
+                const page = this.dataset.page;
+                const name = this.dataset.name;
+                const color = this.dataset.color;
+                createRipple(e, this, 'rgba(255,255,255,0.2)');
+                setTimeout(() => navigateWithTransition(page, name, color), 200);
+            });
+        });
+
+        // ═══════════════════════════════════════════════
+        // FLOATING DATASET NAV CLICK HANDLERS
+        // ═══════════════════════════════════════════════
+
+        document.querySelectorAll('.dnf-item[data-page]').forEach(item => {
+            item.addEventListener('click', function (e) {
+                const page = this.dataset.page;
+                const name = this.dataset.name;
+                const color = this.dataset.color;
+                createRipple(e, this, 'rgba(255,255,255,0.1)');
+                setTimeout(() => navigateWithTransition(page, name, color), 200);
+            });
+
+            // Subtle magnetic hover on floating nav items
+            item.addEventListener('mousemove', function (e) {
+                const rect = this.getBoundingClientRect();
+                const y = e.clientY - rect.top;
+                const centerY = rect.height / 2;
+                const deltaY = (y - centerY) / centerY * 2;
+                this.style.transform = `translateY(${deltaY}px)`;
+            });
+
+            item.addEventListener('mouseleave', function () {
+                this.style.transform = '';
+            });
+        });
+
+        // ═══════════════════════════════════════════════
+        // COMP TABLE ROW CLICK-TO-NAVIGATE
+        // ═══════════════════════════════════════════════
+
+        const dsRowMap = {
+            'ISOT': { page: 'isot.html', name: 'ISOT', color: '#c0392b' },
+            'Kaggle FND': { page: 'fnd.html', name: 'Kaggle FND', color: '#1a5276' },
+            'LIAR': { page: 'liar.html', name: 'LIAR', color: '#145a32' },
+            'FakeNewsNet': { page: 'fakenewsnet.html', name: 'FakeNewsNet', color: '#6c3483' },
+        };
+
+        document.querySelectorAll('.comp-table .td-name').forEach(td => {
+            const text = td.textContent.trim();
+            const info = dsRowMap[text];
+            if (info) {
+                td.style.cursor = 'pointer';
+                td.style.textDecoration = 'underline';
+                td.style.textDecorationStyle = 'dotted';
+                td.style.textUnderlineOffset = '4px';
+                td.title = `Open ${info.name} full report`;
+                td.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    navigateWithTransition(info.page, info.name, info.color);
+                });
+            }
+        });
+
+        // ═══════════════════════════════════════════════
+        // SCROLL, BACK-TO-TOP, FLOATING NAV VISIBILITY
+        // ═══════════════════════════════════════════════
+
+        const scrollBar = document.getElementById('scroll-bar');
+        const backTopBtn = document.getElementById('back-top');
+        const floatNav = document.getElementById('datasetNavFloat');
+
+        window.addEventListener('scroll', () => {
+            const pct = (window.scrollY / (document.documentElement.scrollHeight - window.innerHeight)) * 100;
+            scrollBar.style.width = pct + '%';
+            backTopBtn.classList.toggle('visible', window.scrollY > 500);
+            floatNav.classList.toggle('visible', window.scrollY > 600);
+        });
+
+        backTopBtn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+
+        // ═══════════════════════════════════════════════
+        // INTERSECTION OBSERVER — REVEALS
+        // ═══════════════════════════════════════════════
+
+        const io = new IntersectionObserver(entries => {
+            entries.forEach(e => {
+                if (!e.isIntersecting) return;
+                const el = e.target;
+                if (el.classList.contains('reveal') || el.classList.contains('reveal-left'))
+                    el.classList.add('visible');
+                if (el.classList.contains('stagger')) el.classList.add('visible');
+                if (el.classList.contains('code-block')) el.classList.add('visible');
+                if (el.classList.contains('class-bar-fill')) {
+                    setTimeout(() => el.classList.add('animated'), 150);
+                }
+                io.unobserve(el);
+            });
+        }, { threshold: 0.05, rootMargin: '0px 0px -50px 0px' });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            document.querySelectorAll('.reveal, .reveal-left').forEach(el => io.observe(el));
+            document.querySelectorAll('.stagger').forEach(el => io.observe(el));
+            document.querySelectorAll('.code-block').forEach(el => io.observe(el));
+            document.querySelectorAll('.class-bar-fill').forEach(el => io.observe(el));
+
+            // Table row hover animation
+            document.querySelectorAll('.comp-table tbody tr').forEach(tr => {
+                tr.style.transition = 'background 0.2s, transform 0.2s';
+                tr.addEventListener('mouseenter', () => tr.style.transform = 'translateX(5px)');
+                tr.addEventListener('mouseleave', () => tr.style.transform = '');
+            });
+
+            // Section dot navigation (right side)
+            const sections = document.querySelectorAll('.section');
+            const nav = document.createElement('div');
+            nav.style.cssText = 'position:fixed;right:1.2rem;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:8px;z-index:9000;';
+            sections.forEach((sec, i) => {
+                const dot = document.createElement('div');
+                dot.style.cssText = 'width:7px;height:7px;border-radius:50%;background:rgba(26,18,8,0.15);cursor:pointer;transition:background 0.3s,transform 0.3s;border:1px solid rgba(26,18,8,0.2);';
+                dot.title = 'Section ' + (i + 1);
+                dot.addEventListener('click', () => sec.scrollIntoView({ behavior: 'smooth' }));
+                nav.appendChild(dot);
+            });
+            document.body.appendChild(nav);
+
+            const dots = nav.querySelectorAll('div');
+            sections.forEach((sec, i) => {
+                new IntersectionObserver(entries => {
+                    entries.forEach(e => {
+                        dots[i].style.background = e.isIntersecting ? 'var(--rust)' : 'rgba(26,18,8,0.15)';
+                        dots[i].style.transform = e.isIntersecting ? 'scale(1.5)' : 'scale(1)';
+                    });
+                }, { threshold: 0.3 }).observe(sec);
+            });
+        });
+
+        // Fallback — ensure animations trigger even if IntersectionObserver is slow
+        setTimeout(() => {
+            document.querySelectorAll('.reveal,.reveal-left,.stagger,.code-block').forEach(el => {
+                el.classList.add('visible');
+            });
+            document.querySelectorAll('.class-bar-fill').forEach(el => el.classList.add('animated'));
+        }, 2500);
+    </script>
+</body>
+
+</html>

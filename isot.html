@@ -1,0 +1,2772 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ISOT Fake News Dataset — Technical Report</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Literata:ital,opsz,wght@0,7..72,300;0,7..72,400;0,7..72,600;1,7..72,300;1,7..72,400&family=JetBrains+Mono:wght@300;400;500&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --white: #ffffff;
+            --off: #f7f5f2;
+            --ink: #0a0a0a;
+            --red: #c01010;
+            --red-dim: #8a0c0c;
+            --red-pale: #fff0f0;
+            --red-light: rgba(192, 16, 16, 0.08);
+            --steel: #2a3a4a;
+            --steel-light: #e8ecf0;
+            --muted: #6a6a72;
+            --rule: #d8d4ce;
+            --real-col: #1a4a6a;
+            --real-pale: #eef4f8;
+            --real-dim: rgba(26, 74, 106, 0.08);
+            --code-bg: #0a0e14;
+            --code-fg: #c8d4e0;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: 'Literata', Georgia, serif;
+            background: var(--white);
+            color: var(--ink);
+            font-size: 15.5px;
+            line-height: 1.75;
+        }
+
+        #sp {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 3px;
+            background: var(--red);
+            z-index: 10000;
+            width: 0%;
+            transition: width 0.1s;
+        }
+
+        #btt {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            width: 42px;
+            height: 42px;
+            background: var(--ink);
+            color: var(--white);
+            border: none;
+            cursor: pointer;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transform: translateY(12px);
+            transition: opacity 0.3s, transform 0.3s, background 0.2s;
+            z-index: 9990;
+        }
+
+        #btt.vis {
+            opacity: 1;
+            transform: none;
+        }
+
+        #btt:hover {
+            background: var(--red);
+        }
+
+        .cover {
+            background: var(--ink);
+            color: var(--white);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .cover::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image:
+                repeating-linear-gradient(0deg, transparent, transparent 39px, rgba(255, 255, 255, 0.025) 40px),
+                repeating-linear-gradient(90deg, transparent, transparent 39px, rgba(255, 255, 255, 0.025) 40px);
+            pointer-events: none;
+        }
+
+        .cover::after {
+            content: '';
+            position: absolute;
+            top: -80px;
+            right: -80px;
+            width: 340px;
+            height: 340px;
+            background: var(--red);
+            clip-path: polygon(100% 0, 100% 100%, 0 100%);
+            opacity: 0.12;
+            pointer-events: none;
+        }
+
+        .cover-topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.9rem 4rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            position: relative;
+            z-index: 2;
+        }
+
+        .ctb-left {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 9.5px;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: rgba(255, 255, 255, 0.3);
+        }
+
+        .ctb-right {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 9.5px;
+            letter-spacing: 0.12em;
+            color: rgba(255, 255, 255, 0.2);
+        }
+
+        .cover-grid {
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            min-height: 85vh;
+            position: relative;
+            z-index: 2;
+        }
+
+        .cover-main {
+            padding: 4rem 4rem 3rem;
+            border-right: 1px solid rgba(255, 255, 255, 0.06);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .cover-kicker {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            letter-spacing: 0.3em;
+            text-transform: uppercase;
+            color: var(--red);
+            margin-bottom: 1.5rem;
+        }
+
+        .cover-kicker::after {
+            content: '';
+            flex: 1;
+            max-width: 48px;
+            height: 1px;
+            background: var(--red);
+            opacity: 0.6;
+        }
+
+        .cover-title {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: clamp(5rem, 11vw, 10rem);
+            letter-spacing: 0.04em;
+            line-height: 0.9;
+            color: var(--white);
+            margin-bottom: 0.5rem;
+        }
+
+        .cover-title .red {
+            color: var(--red);
+        }
+
+        .cover-tagline {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            letter-spacing: 0.15em;
+            color: rgba(255, 255, 255, 0.3);
+            text-transform: uppercase;
+            margin-bottom: 2rem;
+            border-left: 2px solid var(--red);
+            padding-left: 1rem;
+        }
+
+        .cover-desc {
+            font-family: 'Literata', serif;
+            font-size: 1rem;
+            color: rgba(255, 255, 255, 0.55);
+            max-width: 560px;
+            line-height: 1.7;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            padding-top: 1.5rem;
+            margin-bottom: 2.5rem;
+        }
+
+        .cover-stats {
+            display: flex;
+            gap: 0;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .cs-item {
+            flex: 1;
+            padding: 1.2rem 1.4rem;
+            border-right: 1px solid rgba(255, 255, 255, 0.08);
+            transition: background 0.2s;
+        }
+
+        .cs-item:last-child {
+            border-right: none;
+        }
+
+        .cs-item:hover {
+            background: rgba(192, 16, 16, 0.08);
+        }
+
+        .cs-val {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 2.4rem;
+            letter-spacing: 0.05em;
+            color: var(--white);
+            line-height: 1;
+            margin-bottom: 4px;
+        }
+
+        .cs-lbl {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 8.5px;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: rgba(255, 255, 255, 0.3);
+        }
+
+        .cover-right {
+            padding: 2.5rem 1.8rem;
+            display: flex;
+            flex-direction: column;
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .cr-label {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 8.5px;
+            letter-spacing: 0.22em;
+            text-transform: uppercase;
+            color: rgba(255, 255, 255, 0.2);
+            margin-bottom: 1.2rem;
+            padding-bottom: 0.7rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+        }
+
+        .ticker-item {
+            padding: 0.8rem 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            transition: background 0.2s, padding-left 0.2s;
+            cursor: default;
+        }
+
+        .ticker-item:hover {
+            background: rgba(255, 255, 255, 0.03);
+            padding-left: 6px;
+        }
+
+        .ti-class {
+            display: inline-block;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 8px;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            padding: 1px 6px;
+            border-radius: 1px;
+            margin-bottom: 4px;
+        }
+
+        .ti-fake {
+            background: rgba(192, 16, 16, 0.2);
+            color: #e07070;
+            border: 1px solid rgba(192, 16, 16, 0.3);
+        }
+
+        .ti-real {
+            background: rgba(26, 74, 106, 0.25);
+            color: #7ab4d8;
+            border: 1px solid rgba(26, 74, 106, 0.3);
+        }
+
+        .ti-title {
+            font-family: 'Literata', serif;
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.65);
+            line-height: 1.45;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .ti-meta {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 9px;
+            color: rgba(255, 255, 255, 0.2);
+            margin-top: 4px;
+        }
+
+        .cover-footer-bar {
+            padding: 1.2rem 4rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.07);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: relative;
+            z-index: 2;
+        }
+
+        .cfb-left {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 9.5px;
+            color: rgba(255, 255, 255, 0.2);
+            line-height: 1.7;
+        }
+
+        .cfb-right {
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+        }
+
+        .cfb-avatar {
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            overflow: hidden;
+            border: 1px solid rgba(192, 16, 16, 0.3);
+            flex-shrink: 0;
+        }
+
+        .cfb-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 50%;
+        }
+
+        .cfb-name {
+            font-family: 'Literata', serif;
+            font-size: 13px;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .doc-body {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 5rem 3rem;
+        }
+
+        p {
+            margin-bottom: 1.1rem;
+            color: #1e1e22;
+        }
+
+        .section {
+            margin-bottom: 5.5rem;
+        }
+
+        .sec-hd {
+            margin-bottom: 2.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 3px solid var(--ink);
+            display: flex;
+            align-items: baseline;
+            gap: 1.5rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .sec-hd::after {
+            content: '';
+            position: absolute;
+            bottom: -3px;
+            left: 0;
+            height: 3px;
+            width: 0%;
+            background: var(--red);
+            transition: width 1s cubic-bezier(.22, .8, .46, 1);
+        }
+
+        .sec-hd.anim::after {
+            width: 100%;
+        }
+
+        .sec-num {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 1.4rem;
+            letter-spacing: 0.08em;
+            color: rgba(10, 10, 10, 0.18);
+            flex-shrink: 0;
+        }
+
+        .sec-eyebrow {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 9px;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: var(--red);
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        .sec-title {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 2.2rem;
+            letter-spacing: 0.06em;
+            line-height: 1;
+        }
+
+        .callout {
+            padding: 1.3rem 1.8rem;
+            margin: 2rem 0;
+            border-left: 3px solid var(--ink);
+            background: var(--off);
+        }
+
+        .callout.danger {
+            border-left-color: var(--red);
+            background: var(--red-pale);
+        }
+
+        .callout.info {
+            border-left-color: var(--real-col);
+            background: var(--real-pale);
+        }
+
+        .callout.tip {
+            border-left-color: #888;
+            background: #f5f5f5;
+        }
+
+        .callout-lbl {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 8.5px;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 0.5rem;
+        }
+
+        .callout p {
+            margin-bottom: 0;
+            font-size: 14px;
+        }
+
+        .overview-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1px;
+            background: var(--rule);
+            border: 1px solid var(--rule);
+            margin: 2.5rem 0;
+        }
+
+        .ov-card {
+            background: var(--white);
+            padding: 1.8rem 1.4rem;
+            transition: transform 0.22s, box-shadow 0.22s, background 0.18s;
+            cursor: default;
+        }
+
+        .ov-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 28px rgba(192, 16, 16, 0.1);
+            background: var(--red-pale);
+            z-index: 2;
+            position: relative;
+        }
+
+        .ov-icon {
+            font-size: 1.4rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .ov-val {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 2.2rem;
+            letter-spacing: 0.06em;
+            color: var(--red);
+            line-height: 1;
+            margin-bottom: 4px;
+        }
+
+        .ov-lbl {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 8.5px;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: var(--muted);
+        }
+
+        .ov-desc {
+            font-size: 12.5px;
+            color: var(--muted);
+            margin-top: 0.5rem;
+            line-height: 1.5;
+        }
+
+        .balance-block {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1px;
+            background: var(--rule);
+            border: 1px solid var(--rule);
+            margin: 2.5rem 0;
+        }
+
+        .bb-panel {
+            background: var(--white);
+            padding: 2rem;
+        }
+
+        .bb-title {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 1rem;
+            letter-spacing: 0.08em;
+            margin-bottom: 1.2rem;
+            padding-bottom: 0.6rem;
+            border-bottom: 1px solid var(--rule);
+        }
+
+        .bb-bar {
+            margin-bottom: 1rem;
+        }
+
+        .bb-bar-label {
+            display: flex;
+            justify-content: space-between;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10.5px;
+            color: var(--muted);
+            margin-bottom: 5px;
+        }
+
+        .bb-track {
+            height: 18px;
+            background: var(--off);
+            border-radius: 1px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .bb-fill {
+            height: 100%;
+            border-radius: 1px;
+            width: 0;
+            transition: width 1.3s cubic-bezier(.22, .8, .46, 1);
+            display: flex;
+            align-items: center;
+            padding-left: 8px;
+        }
+
+        .bb-fill.anim {
+            width: var(--w) !important;
+        }
+
+        .bb-fill-label {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 9px;
+            color: rgba(255, 255, 255, 0.7);
+            white-space: nowrap;
+            overflow: hidden;
+        }
+
+        .fill-fake {
+            background: var(--red);
+        }
+
+        .fill-real {
+            background: var(--real-col);
+        }
+
+        .fill-pol {
+            background: #2a4a6a;
+        }
+
+        .fill-world {
+            background: #1a6a4a;
+        }
+
+        .schema-tbl {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 2.5rem 0;
+            font-size: 13.5px;
+        }
+
+        .schema-tbl th {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 8.5px;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            padding: 10px 14px;
+            text-align: left;
+            background: var(--ink);
+            color: rgba(255, 255, 255, 0.6);
+            border-right: 1px solid rgba(255, 255, 255, 0.07);
+        }
+
+        .schema-tbl th:last-child {
+            border-right: none;
+        }
+
+        .schema-tbl td {
+            padding: 11px 14px;
+            border-bottom: 1px solid var(--rule);
+            vertical-align: top;
+        }
+
+        .schema-tbl tbody tr:hover td {
+            background: var(--off);
+        }
+
+        .td-f {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            color: var(--red);
+            font-weight: 500;
+        }
+
+        .td-type {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            color: var(--muted);
+            background: var(--off);
+            padding: 1px 6px;
+            border-radius: 2px;
+        }
+
+        .td-key {
+            display: inline-block;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 9px;
+            padding: 1px 7px;
+            background: var(--red-light);
+            color: var(--red);
+            border: 1px solid rgba(192, 16, 16, 0.2);
+            border-radius: 1px;
+        }
+
+
+        .filter-tabs {
+            display: flex;
+            gap: 0;
+            border: 1px solid var(--rule);
+            margin-bottom: 1.5rem;
+            overflow: hidden;
+        }
+
+        .ftab {
+            flex: 1;
+            padding: 0.65rem 0.4rem;
+            text-align: center;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 9px;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            cursor: pointer;
+            border-right: 1px solid var(--rule);
+            transition: background 0.2s, color 0.2s;
+            background: var(--white);
+            color: var(--muted);
+            user-select: none;
+        }
+
+        .ftab:last-child {
+            border-right: none;
+        }
+
+        .ftab.active.fake-active {
+            background: var(--red);
+            color: var(--white);
+        }
+
+        .ftab.active.real-active {
+            background: var(--real-col);
+            color: var(--white);
+        }
+
+        .ftab.active.all-active {
+            background: var(--ink);
+            color: var(--white);
+        }
+
+        .ftab:hover:not(.active) {
+            background: var(--off);
+            color: var(--ink);
+        }
+
+        .record-card {
+            border: 1.5px solid var(--ink);
+            margin-bottom: 1.4rem;
+            position: relative;
+            overflow: hidden;
+            transition: box-shadow 0.25s;
+        }
+
+        .record-card:hover {
+            box-shadow: 5px 5px 0 var(--ink);
+        }
+
+        .record-card.hidden {
+            display: none;
+        }
+
+        .rc-stripe {
+            height: 5px;
+        }
+
+        .rc-stripe.fake {
+            background: var(--red);
+        }
+
+        .rc-stripe.real {
+            background: var(--real-col);
+        }
+
+        .rc-top {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 1rem;
+            padding: 1.2rem 1.5rem 0.9rem;
+            border-bottom: 1px solid var(--rule);
+            align-items: start;
+        }
+
+        .rc-top.real-bg {
+            background: var(--real-pale);
+        }
+
+        .rc-top.fake-bg {
+            background: var(--red-pale);
+        }
+
+        .rc-source-line {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 9px;
+            letter-spacing: 0.12em;
+            color: var(--muted);
+            margin-bottom: 5px;
+        }
+
+        .rc-headline {
+            font-family: 'Literata', serif;
+            font-size: 1.05rem;
+            font-style: italic;
+            font-weight: 600;
+            line-height: 1.42;
+            color: var(--ink);
+        }
+
+        .rc-chip {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 9px;
+            font-weight: 500;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            padding: 4px 12px;
+            border-radius: 1px;
+            white-space: nowrap;
+            flex-shrink: 0;
+            align-self: flex-start;
+        }
+
+        .chip-fake {
+            background: rgba(192, 16, 16, 0.1);
+            color: var(--red);
+            border: 1px solid rgba(192, 16, 16, 0.28);
+        }
+
+        .chip-real {
+            background: rgba(26, 74, 106, 0.1);
+            color: var(--real-col);
+            border: 1px solid rgba(26, 74, 106, 0.25);
+        }
+
+        .rc-excerpt {
+            padding: 1rem 1.5rem;
+            font-size: 13px;
+            color: #3a3a3a;
+            line-height: 1.7;
+            border-bottom: 1px solid var(--rule);
+            font-style: italic;
+        }
+
+        .rc-excerpt em {
+            font-style: normal;
+            font-weight: 600;
+        }
+
+        .rc-meta-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0;
+            border-bottom: 1px solid var(--rule);
+        }
+
+        .rc-mc {
+            padding: 0.65rem 1.2rem;
+            border-right: 1px solid var(--rule);
+            min-width: 110px;
+        }
+
+        .rc-mc:last-child {
+            border-right: none;
+        }
+
+        .rc-mk {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 8px;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 3px;
+        }
+
+        .rc-mv {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--ink);
+        }
+
+        .csv-raw {
+            background: var(--code-bg);
+            padding: 1.5rem 2rem;
+            margin: 2rem 0;
+            overflow-x: auto;
+            border-left: 3px solid var(--red);
+        }
+
+        .csv-raw pre {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11.5px;
+            color: var(--code-fg);
+            line-height: 2;
+            white-space: pre;
+        }
+
+        .cf {
+            color: #7ab8c8;
+        }
+
+        .cs {
+            color: #b8c87a;
+        }
+
+        .cn {
+            color: #c8a07a;
+        }
+
+        .cF {
+            color: #e07070;
+            font-weight: 600;
+        }
+
+        .cR {
+            color: #70b0e0;
+            font-weight: 600;
+        }
+
+        .cm {
+            color: #5a7a5a;
+        }
+
+        .timeline-chart {
+            background: var(--off);
+            border: 1px solid var(--rule);
+            padding: 2rem;
+            margin: 2.5rem 0;
+            overflow-x: auto;
+        }
+
+        .tc-title {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 9px;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 1.5rem;
+        }
+
+        .pipeline {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1px;
+            background: var(--ink);
+            border: 1.5px solid var(--ink);
+            margin: 2.5rem 0;
+        }
+
+        .ps {
+            background: var(--white);
+            padding: 1.8rem 1.4rem;
+            position: relative;
+            transition: background 0.2s;
+        }
+
+        .ps:hover {
+            background: var(--red-pale);
+        }
+
+        .ps-num {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 4rem;
+            color: rgba(10, 10, 10, 0.05);
+            position: absolute;
+            top: 0.5rem;
+            right: 0.8rem;
+            line-height: 1;
+            letter-spacing: 0.04em;
+        }
+
+        .ps-title {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 1.1rem;
+            letter-spacing: 0.06em;
+            margin-bottom: 0.5rem;
+            position: relative;
+        }
+
+        .ps-desc {
+            font-size: 12.5px;
+            color: var(--muted);
+            line-height: 1.6;
+            position: relative;
+        }
+
+        .bench-tbl {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 2.5rem 0;
+            font-size: 13.5px;
+        }
+
+        .bench-tbl th {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 8.5px;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            padding: 10px 14px;
+            text-align: left;
+            background: var(--ink);
+            color: rgba(255, 255, 255, 0.55);
+            border-right: 1px solid rgba(255, 255, 255, 0.07);
+        }
+
+        .bench-tbl th:last-child {
+            border-right: none;
+        }
+
+        .bench-tbl td {
+            padding: 12px 14px;
+            border-bottom: 1px solid var(--rule);
+            vertical-align: middle;
+        }
+
+        .bench-tbl tbody tr:hover td {
+            background: var(--off);
+        }
+
+        .bench-tbl tbody tr {
+            transition: background 0.2s, transform 0.2s;
+        }
+
+        .acc-high {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 1.25rem;
+            letter-spacing: 0.06em;
+            color: var(--red);
+        }
+
+        .leakage-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin: 2.5rem 0;
+        }
+
+        .lg-panel {
+            border: 1px solid var(--rule);
+            overflow: hidden;
+        }
+
+        .lg-header {
+            padding: 0.8rem 1.2rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 8.5px;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+        }
+
+        .lg-header.bad {
+            background: var(--red);
+            color: var(--white);
+        }
+
+        .lg-header.good {
+            background: var(--real-col);
+            color: var(--white);
+        }
+
+        .lg-body {
+            padding: 1.2rem;
+        }
+
+        .lg-item {
+            display: flex;
+            gap: 0.8rem;
+            align-items: flex-start;
+            margin-bottom: 0.8rem;
+            font-size: 13px;
+            color: #2e2e38;
+            line-height: 1.55;
+        }
+
+        .lg-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            margin-top: 6px;
+        }
+
+        .dot-bad {
+            background: var(--red);
+        }
+
+        .dot-good {
+            background: var(--real-col);
+        }
+
+        .code-block {
+            background: var(--code-bg);
+            padding: 1.5rem 2rem;
+            margin: 2rem 0;
+            overflow-x: auto;
+            border-left: 3px solid var(--red);
+            opacity: 0;
+            transform: translateY(12px);
+            transition: opacity 0.5s, transform 0.5s;
+        }
+
+        .code-block.vis {
+            opacity: 1;
+            transform: none;
+        }
+
+        .code-block pre {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            color: var(--code-fg);
+            line-height: 1.9;
+            white-space: pre;
+        }
+
+        .cc {
+            color: #4a6a4a;
+        }
+
+        .ck {
+            color: #7ab8c8;
+        }
+
+        .cstr {
+            color: #b8c87a;
+        }
+
+        .cnum {
+            color: #c8a07a;
+        }
+
+        .citation-box {
+            background: var(--ink);
+            color: var(--white);
+            padding: 2.5rem 3rem;
+            margin: 3rem 0;
+        }
+
+        .cb-title {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 1.3rem;
+            letter-spacing: 0.08em;
+            color: rgba(255, 255, 255, 0.5);
+            margin-bottom: 1.2rem;
+            padding-bottom: 0.8rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .cb-entry {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11.5px;
+            color: rgba(255, 255, 255, 0.4);
+            line-height: 1.9;
+            margin-bottom: 1rem;
+            padding-left: 1rem;
+            border-left: 2px solid rgba(192, 16, 16, 0.3);
+        }
+
+        .cb-entry strong {
+            color: rgba(255, 255, 255, 0.75);
+        }
+
+        .cb-entry em {
+            color: rgba(255, 255, 255, 0.55);
+            font-style: italic;
+        }
+
+        .author-strip {
+            background: var(--ink);
+            padding: 4rem;
+            display: flex;
+            align-items: center;
+            gap: 3rem;
+            flex-wrap: wrap;
+        }
+
+        .as-avatar {
+            width: 84px;
+            height: 84px;
+            border-radius: 50%;
+            overflow: hidden;
+            border: 2px solid rgba(192, 16, 16, 0.3);
+            flex-shrink: 0;
+        }
+
+        .as-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 50%;
+            display: block;
+        }
+
+        .as-info {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .as-lbl {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 8.5px;
+            letter-spacing: 0.25em;
+            text-transform: uppercase;
+            color: rgba(255, 255, 255, 0.2);
+            margin-bottom: 0.3rem;
+        }
+
+        .as-name {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 2.8rem;
+            letter-spacing: 0.06em;
+            color: var(--white);
+            line-height: 1;
+            margin-bottom: 0.4rem;
+        }
+
+        .as-desc {
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.35);
+            line-height: 1.7;
+        }
+
+        .as-links {
+            display: flex;
+            flex-direction: column;
+            gap: 0.6rem;
+        }
+
+        .as-link {
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+            text-decoration: none;
+            padding: 0.6rem 1.2rem;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            min-width: 230px;
+            transition: all 0.2s;
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .as-link:hover {
+            border-color: rgba(192, 16, 16, 0.3);
+            background: rgba(192, 16, 16, 0.05);
+        }
+
+        .as-link-plat {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 8.5px;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: rgba(255, 255, 255, 0.2);
+            display: block;
+        }
+
+        .as-link-handle {
+            font-family: 'Literata', serif;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--white);
+        }
+
+        .doc-footer {
+            background: #050505;
+            color: rgba(255, 255, 255, 0.15);
+            padding: 1.4rem 3rem;
+            text-align: center;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 9.5px;
+            letter-spacing: 0.1em;
+        }
+
+        .rev {
+            opacity: 0;
+            transform: translateY(28px);
+            transition: opacity 0.7s cubic-bezier(.22, .8, .46, 1), transform 0.7s cubic-bezier(.22, .8, .46, 1);
+        }
+
+        .rev.vis {
+            opacity: 1;
+            transform: none;
+        }
+
+        .rev-l {
+            opacity: 0;
+            transform: translateX(-28px);
+            transition: opacity 0.7s cubic-bezier(.22, .8, .46, 1), transform 0.7s cubic-bezier(.22, .8, .46, 1);
+        }
+
+        .rev-l.vis {
+            opacity: 1;
+            transform: none;
+        }
+
+        .stag>* {
+            opacity: 0;
+            transform: translateY(18px);
+            transition: opacity 0.5s, transform 0.5s cubic-bezier(.22, .8, .46, 1);
+        }
+
+        .stag.vis>*:nth-child(1) {
+            opacity: 1;
+            transform: none;
+            transition-delay: 0.05s;
+        }
+
+        .stag.vis>*:nth-child(2) {
+            opacity: 1;
+            transform: none;
+            transition-delay: 0.12s;
+        }
+
+        .stag.vis>*:nth-child(3) {
+            opacity: 1;
+            transform: none;
+            transition-delay: 0.19s;
+        }
+
+        .stag.vis>*:nth-child(4) {
+            opacity: 1;
+            transform: none;
+            transition-delay: 0.26s;
+        }
+
+        .stag.vis>*:nth-child(5) {
+            opacity: 1;
+            transform: none;
+            transition-delay: 0.33s;
+        }
+
+        .stag.vis>*:nth-child(6) {
+            opacity: 1;
+            transform: none;
+            transition-delay: 0.40s;
+        }
+
+        @keyframes fadeUp {
+            from {
+                opacity: 0;
+                transform: translateY(24px)
+            }
+
+            to {
+                opacity: 1;
+                transform: none
+            }
+        }
+
+        @keyframes slideRight {
+            from {
+                opacity: 0;
+                transform: translateX(-24px)
+            }
+
+            to {
+                opacity: 1;
+                transform: none
+            }
+        }
+
+        .cover-kicker {
+            animation: fadeUp 0.5s 0.1s both;
+        }
+
+        .cover-title {
+            animation: fadeUp 0.7s 0.22s both;
+        }
+
+        .cover-tagline {
+            animation: fadeUp 0.6s 0.38s both;
+        }
+
+        .cover-desc {
+            animation: fadeUp 0.6s 0.52s both;
+        }
+
+        .cover-stats {
+            animation: fadeUp 0.5s 0.65s both;
+        }
+
+        .cover-right>* {
+            animation: slideRight 0.5s both;
+        }
+
+        .cr-label {
+            animation-delay: 0.3s;
+        }
+
+        .ticker-item:nth-child(1) {
+            animation-delay: 0.36s;
+        }
+
+        .ticker-item:nth-child(2) {
+            animation-delay: 0.43s;
+        }
+
+        .ticker-item:nth-child(3) {
+            animation-delay: 0.50s;
+        }
+
+        .ticker-item:nth-child(4) {
+            animation-delay: 0.57s;
+        }
+
+        .ticker-item:nth-child(5) {
+            animation-delay: 0.64s;
+        }
+
+        .ticker-item:nth-child(6) {
+            animation-delay: 0.71s;
+        }
+
+        .ticker-item:nth-child(7) {
+            animation-delay: 0.78s;
+        }
+
+        .ticker-item:nth-child(8) {
+            animation-delay: 0.85s;
+        }
+
+        @media(max-width:900px) {
+            .cover-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .cover-right {
+                display: none;
+            }
+
+            .overview-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .balance-block {
+                grid-template-columns: 1fr;
+            }
+
+            .pipeline {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .leakage-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .doc-body {
+                padding: 3rem 1.5rem;
+            }
+
+            .cover-main {
+                padding: 2.5rem 2rem;
+            }
+
+            .author-strip {
+                padding: 2.5rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="sp"></div>
+    <button id="btt">↑</button>
+
+    <div class="cover">
+        <div class="cover-topbar">
+            <div class="ctb-left">Technical Dataset Report · Binary Fake News Classification · NLP</div>
+            <div class="ctb-right">Compiled by Rakesh Raut · github.com/Rex1671</div>
+        </div>
+
+        <div class="cover-grid">
+            <div class="cover-main">
+                <div class="cover-kicker">ISOT Research Lab · University of Victoria, Canada</div>
+
+                <h1 class="cover-title">ISOT<br><span class="red">FAKE</span><br>NEWS</h1>
+
+                <div class="cover-tagline">Reuters (Real) vs. Flagged Sites (Fake) · 44,898 Articles · 2016–2018</div>
+
+                <div class="cover-desc">
+                    The ISOT Fake News Dataset is the most widely cited binary classification benchmark in fake news
+                    detection research — clean sourcing, near-balanced classes, long-form article text, and rich
+                    temporal coverage across two years of US politics and world news.
+                </div>
+
+                <div class="cover-stats">
+                    <div class="cs-item">
+                        <div class="cs-val">44,898</div>
+                        <div class="cs-lbl">Total Articles</div>
+                    </div>
+                    <div class="cs-item">
+                        <div class="cs-val">23,481</div>
+                        <div class="cs-lbl">Real (Reuters)</div>
+                    </div>
+                    <div class="cs-item">
+                        <div class="cs-val">21,417</div>
+                        <div class="cs-lbl">Fake Articles</div>
+                    </div>
+                    <div class="cs-item">
+                        <div class="cs-val">2016–18</div>
+                        <div class="cs-lbl">Time Range</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="cover-right">
+                <div class="cr-label">Live Feed — Sample Headlines</div>
+
+                <div class="ticker-item">
+                    <div class="ti-class ti-fake">● FAKE</div>
+                    <div class="ti-title">Donald Trump Sends Out Embarrassing New Year's Eve Message; This is Disturbing
+                    </div>
+                    <div class="ti-meta">News · December 31, 2017</div>
+                </div>
+                <div class="ticker-item">
+                    <div class="ti-class ti-real">● REAL</div>
+                    <div class="ti-title">As U.S. budget fight looms, Republicans flip their fiscal script</div>
+                    <div class="ti-meta">politicsNews · December 31, 2017</div>
+                </div>
+                <div class="ticker-item">
+                    <div class="ti-class ti-fake">● FAKE</div>
+                    <div class="ti-title">Sheriff David Clarke Becomes An Internet Joke For Threatening To Poke People
+                        'In The Eye'</div>
+                    <div class="ti-meta">News · December 30, 2017</div>
+                </div>
+                <div class="ticker-item">
+                    <div class="ti-class ti-real">● REAL</div>
+                    <div class="ti-title">U.S. military to accept transgender recruits on Monday: Pentagon</div>
+                    <div class="ti-meta">politicsNews · December 29, 2017</div>
+                </div>
+                <div class="ticker-item">
+                    <div class="ti-class ti-fake">● FAKE</div>
+                    <div class="ti-title">Pope Francis Just Called Out Donald Trump During His Christmas Speech</div>
+                    <div class="ti-meta">News · December 25, 2017</div>
+                </div>
+                <div class="ticker-item">
+                    <div class="ti-class ti-real">● REAL</div>
+                    <div class="ti-title">Senior U.S. Republican senator: 'Let Mr. Mueller do his job'</div>
+                    <div class="ti-meta">politicsNews · December 31, 2017</div>
+                </div>
+                <div class="ticker-item">
+                    <div class="ti-class ti-fake">● FAKE</div>
+                    <div class="ti-title">Trump Said Some INSANELY Racist Stuff Inside The Oval Office, And Witnesses
+                        Back It Up</div>
+                    <div class="ti-meta">News · December 23, 2017</div>
+                </div>
+                <div class="ticker-item">
+                    <div class="ti-class ti-real">● REAL</div>
+                    <div class="ti-title">FBI Russia probe helped by Australian diplomat tip-off: NYT</div>
+                    <div class="ti-meta">politicsNews · December 30, 2017</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="cover-footer-bar">
+            <div class="cfb-left">
+                Ahmed H., Traore I., Saad S. (2017–2018) · University of Victoria, Canada<br>
+                Kaggle: clmentbisaillon/fake-and-real-news-dataset · True.csv + Fake.csv
+            </div>
+            <div class="cfb-right">
+                <div class="cfb-avatar">
+                    <img src="https://media.licdn.com/dms/image/v2/D5603AQEsekjn2AZbmQ/profile-displayphoto-scale_400_400/B56ZwVT88PHAAg-/0/1769884080112?e=1773273600&v=beta&t=y83Ygn5dnnwpMpmU-JmOdTro8WexSGVB5WBdrq55thc"
+                        alt="Rakesh Raut" onerror="this.style.display='none'">
+                </div>
+                <div class="cfb-name">Rakesh Raut</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="doc-body">
+
+        <div class="section">
+            <div class="sec-hd">
+                <div class="sec-num">01</div>
+                <div>
+                    <span class="sec-eyebrow">Introduction</span>
+                    <h2 class="sec-title">What is the ISOT Dataset?</h2>
+                </div>
+            </div>
+
+            <p>The ISOT Fake News Dataset was created by the Information Security and Object Technology (ISOT) Research
+                Lab at the University of Victoria, Canada, by Ahmed, Traore, and Saad. It is the definitive binary
+                classification benchmark for fake news detection — large enough to train deep models, clean enough to
+                trust, and carefully sourced enough that its labels are reliable.</p>
+
+            <p>Real articles were scraped directly from <strong>Reuters.com</strong>, one of the world's most respected
+                wire services with strict editorial standards, professional bylines, and fact-checking workflows. Fake
+                articles were collected from sites explicitly flagged as unreliable by organisations including
+                <strong>Politifact</strong>, <strong>Wikipedia's list of fake news websites</strong>, and established
+                fact-checking outlets. Every fake article was subsequently evaluated by trained journalists before
+                inclusion.
+            </p>
+
+            <p>The dataset ships as two CSV files — <code
+                    style="font-family:'JetBrains Mono',monospace;font-size:12px;background:var(--off);padding:1px 5px;">True.csv</code>
+                and <code
+                    style="font-family:'JetBrains Mono',monospace;font-size:12px;background:var(--off);padding:1px 5px;">Fake.csv</code>
+                — each with four fields: <strong>title</strong>, <strong>text</strong>, <strong>subject</strong>, and
+                <strong>date</strong>. The label is implicit in which file a record comes from.
+            </p>
+
+            <div class="overview-grid stag">
+                <div class="ov-card">
+                    <div class="ov-icon">📰</div>
+                    <div class="ov-val">44,898</div>
+                    <div class="ov-lbl">Total Articles</div>
+                    <div class="ov-desc">23,481 real from Reuters + 21,417 fake from flagged sites</div>
+                </div>
+                <div class="ov-card">
+                    <div class="ov-icon">⚖️</div>
+                    <div class="ov-val">52/48</div>
+                    <div class="ov-lbl">Real/Fake Split</div>
+                    <div class="ov-desc">Near-balanced — minimal oversampling needed for binary classifier training
+                    </div>
+                </div>
+                <div class="ov-card">
+                    <div class="ov-icon">🗓️</div>
+                    <div class="ov-val">2yr</div>
+                    <div class="ov-lbl">Time Coverage</div>
+                    <div class="ov-desc">January 2016 – December 2017, spanning two US election cycles</div>
+                </div>
+                <div class="ov-card">
+                    <div class="ov-icon">📁</div>
+                    <div class="ov-val">4</div>
+                    <div class="ov-lbl">Fields Per Record</div>
+                    <div class="ov-desc">title, text, subject, date — clean and simple to load with pandas</div>
+                </div>
+            </div>
+
+            <div class="callout danger">
+                <div class="callout-lbl">The Most Important Warning in This Report</div>
+                <p>The <strong>subject</strong> field is a near-perfect label leaker. Fake articles are overwhelmingly
+                    tagged <em>"News"</em> while real articles span <em>"politicsNews"</em> and <em>"worldnews"</em>.
+                    Any model trained with the subject field included achieves >99% accuracy — but it is measuring topic
+                    classification, not veracity detection. <strong>Always drop the subject field and cross-validate
+                        across unseen publishers before claiming results.</strong></p>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="sec-hd">
+                <div class="sec-num">02</div>
+                <div>
+                    <span class="sec-eyebrow">Data Schema</span>
+                    <h2 class="sec-title">CSV Field Structure</h2>
+                </div>
+            </div>
+
+            <p>Both CSVs use identical schemas. There is no ID column — records are identified by their row index within
+                each file. The label (real vs. fake) is determined entirely by which file the record comes from, not by
+                any column value.</p>
+
+            <table class="schema-tbl rev">
+                <thead>
+                    <tr>
+                        <th>Column</th>
+                        <th>Field Name</th>
+                        <th>Type</th>
+                        <th>Description</th>
+                        <th>Example Value</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>0</td>
+                        <td class="td-f">title</td>
+                        <td><span class="td-type">string</span></td>
+                        <td>Article headline — the primary NLP feature for headline-only experiments</td>
+                        <td style="font-size:12px;font-style:italic;color:var(--muted);">"As U.S. budget fight looms,
+                            Republicans flip their fiscal script"</td>
+                    </tr>
+                    <tr>
+                        <td>1</td>
+                        <td class="td-f">text</td>
+                        <td><span class="td-type">string</span> <span class="td-key">MAIN TEXT</span></td>
+                        <td>Full article body — often 300–800 words; real articles begin with Reuters dateline; fake
+                            articles are typically more sensationalist and emotionally charged</td>
+                        <td style="font-size:12px;font-style:italic;color:var(--muted);">"WASHINGTON (Reuters) - The
+                            head of a conservative..."</td>
+                    </tr>
+                    <tr>
+                        <td>2</td>
+                        <td class="td-f">subject</td>
+                        <td><span class="td-type">categorical</span> <span class="td-key">⚠ LEAKER</span></td>
+                        <td>Topic tag. <strong>Real:</strong> "politicsNews" or "worldnews" only. <strong>Fake:</strong>
+                            "News", "politics", "Government News", "left-news", "US_News", "Middle-east", etc. This
+                            distribution is diagnostic of the label.</td>
+                        <td><span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--red);">News /
+                                politicsNews</span></td>
+                    </tr>
+                    <tr>
+                        <td>3</td>
+                        <td class="td-f">date</td>
+                        <td><span class="td-type">string</span></td>
+                        <td>Publication date — format varies (e.g. "December 31, 2017"). Enables temporal splits and
+                            time-series analysis of fake news volume trends</td>
+                        <td style="font-family:'JetBrains Mono',monospace;font-size:11px;">December 31, 2017</td>
+                    </tr>
+                    <tr>
+                        <td>—</td>
+                        <td class="td-f">label</td>
+                        <td><span class="td-type">implicit</span> <span class="td-key">TARGET</span></td>
+                        <td>Not a column — derived from source file. Assign 0 = real (True.csv) and 1 = fake (Fake.csv)
+                            after loading and concatenating both files</td>
+                        <td><span style="font-family:'JetBrains Mono',monospace;font-size:11px;">0 (real) / 1
+                                (fake)</span></td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="balance-block rev">
+                <div class="bb-panel">
+                    <div class="bb-title">CLASS BALANCE — 44,898 Articles</div>
+                    <div class="bb-bar">
+                        <div class="bb-bar-label"><span>REAL (True.csv)</span><span>23,481 — 52.3%</span></div>
+                        <div class="bb-track">
+                            <div class="bb-fill fill-real" style="--w:52.3%"><span class="bb-fill-label">Reuters wire
+                                    reports</span></div>
+                        </div>
+                    </div>
+                    <div class="bb-bar">
+                        <div class="bb-bar-label"><span>FAKE (Fake.csv)</span><span>21,417 — 47.7%</span></div>
+                        <div class="bb-track">
+                            <div class="bb-fill fill-fake" style="--w:47.7%"><span class="bb-fill-label">Flagged
+                                    unreliable sites</span></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="bb-panel">
+                    <div class="bb-title">SUBJECT DISTRIBUTION (Real vs. Fake)</div>
+                    <div class="bb-bar">
+                        <div class="bb-bar-label"><span>politicsNews (Real only)</span><span>~53% of True.csv</span>
+                        </div>
+                        <div class="bb-track">
+                            <div class="bb-fill fill-pol" style="--w:53%"><span class="bb-fill-label">Real
+                                    articles</span></div>
+                        </div>
+                    </div>
+                    <div class="bb-bar">
+                        <div class="bb-bar-label"><span>worldnews (Real only)</span><span>~47% of True.csv</span></div>
+                        <div class="bb-track">
+                            <div class="bb-fill fill-world" style="--w:47%"><span class="bb-fill-label">Real
+                                    articles</span></div>
+                        </div>
+                    </div>
+                    <div class="bb-bar" style="margin-top:0.6rem;">
+                        <div class="bb-bar-label"><span>"News" tag (Fake only)</span><span>~72% of Fake.csv</span></div>
+                        <div class="bb-track">
+                            <div class="bb-fill fill-fake" style="--w:72%"><span class="bb-fill-label">⚠ strong
+                                    leaker</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="sec-hd">
+                <div class="sec-num">03</div>
+                <div>
+                    <span class="sec-eyebrow">Concrete Examples — Actual Dataset Records</span>
+                    <h2 class="sec-title">Sample Records From ISOT</h2>
+                </div>
+            </div>
+
+            <p>The cards below show real records from the ISOT dataset — drawn directly from the data you shared. Fake
+                records come from <code
+                    style="font-family:'JetBrains Mono',monospace;font-size:12px;background:var(--off);padding:1px 5px;">Fake.csv</code>
+                and real records from <code
+                    style="font-family:'JetBrains Mono',monospace;font-size:12px;background:var(--off);padding:1px 5px;">True.csv</code>.
+                Notice the stylistic contrast: fake headlines use hyperbolic, emotion-laden language while real Reuters
+                articles are dateline-prefixed, tonally neutral, and attribution-heavy.</p>
+
+            <div class="filter-tabs" id="filter-tabs">
+                <div class="ftab active all-active" data-filter="all">All (10)</div>
+                <div class="ftab" data-filter="fake" id="tab-fake">Fake — Fake.csv (5)</div>
+                <div class="ftab" data-filter="real" id="tab-real">Real — True.csv (5)</div>
+            </div>
+
+            <div id="sample-cards">
+
+
+                <div class="record-card rev" data-label="fake">
+                    <div class="rc-stripe fake"></div>
+                    <div class="rc-top fake-bg">
+                        <div>
+                            <div class="rc-source-line">Fake.csv · Row 0 · Fake News Article</div>
+                            <div class="rc-headline">Donald Trump Sends Out Embarrassing New Year's Eve Message; This is
+                                Disturbing</div>
+                        </div>
+                        <div class="rc-chip chip-fake">● FAKE</div>
+                    </div>
+                    <div class="rc-excerpt">
+                        "Donald Trump just couldn't wish all Americans a Happy New Year and leave it at that. Instead,
+                        he had..."
+                        <br><em>Note:</em> Emotionally charged headline, first-name address of subject, editorial
+                        "disturbing" framing — all common ISOT fake article signatures.
+                    </div>
+                    <div class="rc-meta-row">
+                        <div class="rc-mc">
+                            <div class="rc-mk">Subject</div>
+                            <div class="rc-mv">News</div>
+                        </div>
+                        <div class="rc-mc">
+                            <div class="rc-mk">Date</div>
+                            <div class="rc-mv">December 31, 2017</div>
+                        </div>
+                        <div class="rc-mc">
+                            <div class="rc-mk">Label (derived)</div>
+                            <div class="rc-mv" style="color:var(--red);">1 — FAKE</div>
+                        </div>
+                        <div class="rc-mc">
+                            <div class="rc-mk">Source File</div>
+                            <div class="rc-mv">Fake.csv</div>
+                        </div>
+                        <div class="rc-mc">
+                            <div class="rc-mk">Dateline</div>
+                            <div class="rc-mv" style="color:var(--red);">None (flag)</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="record-card rev" data-label="fake">
+                    <div class="rc-stripe fake"></div>
+                    <div class="rc-top fake-bg">
+                        <div>
+                            <div class="rc-source-line">Fake.csv · Row 2 · Fake News Article</div>
+                            <div class="rc-headline">Sheriff David Clarke Becomes An Internet Joke For Threatening To
+                                Poke People 'In The Eye'</div>
+                        </div>
+                        <div class="rc-chip chip-fake">● FAKE</div>
+                    </div>
+                    <div class="rc-excerpt">
+                        "On Friday, it was revealed that former Milwaukee Sheriff David Clarke, who was being considered
+                        for..."
+                        <br><em>Note:</em> Mocking/ridicule framing, celebrity-style phrasing ("Internet Joke"), passive
+                        construction to avoid attribution — characteristic of unreliable tabloid-style political
+                        content.
+                    </div>
+                    <div class="rc-meta-row">
+                        <div class="rc-mc">
+                            <div class="rc-mk">Subject</div>
+                            <div class="rc-mv">News</div>
+                        </div>
+                        <div class="rc-mc">
+                            <div class="rc-mk">Date</div>
+                            <div class="rc-mv">December 30, 2017</div>
+                        </div>
+                        <div class="rc-mc">
+                            <div class="rc-mk">Label (derived)</div>
+                            <div class="rc-mv" style="color:var(--red);">1 — FAKE</div>
+                        </div>
+                        <div class="rc-mc">
+                            <div class="rc-mk">Source File</div>
+                            <div class="rc-mv">Fake.csv</div>
+                        </div>
+                        <div class="rc-mc">
+                            <div class="rc-mk">Dateline</div>
+                            <div class="rc-mv" style="color:var(--red);">None (flag)</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="record-card rev" data-label="fake">
+                    <div class="rc-stripe fake"></div>
+                    <div class="rc-top fake-bg">
+                        <div>
+                            <div class="rc-source-line">Fake.csv · Row 4 · Fake News Article</div>
+                            <div class="rc-headline">Pope Francis Just Called Out Donald Trump During His Christmas
+                                Speech</div>
+                        </div>
+                        <div class="rc-chip chip-fake">● FAKE</div>
+                    </div>
+                    <div class="rc-excerpt">
+                        "Pope Francis used his annual Christmas Day message to rebuke Donald Trump without even
+                        mentioning his name..."
+                        <br><em>Note:</em> Uses "just" for recency framing, implies dramatic confrontation, lacks
+                        Reuters-style attribution. Real Reuters coverage of this event would read: "Pope calls for unity
+                        in Christmas message; analysts say remarks may allude to Trump."
+                    </div>
+                    <div class="rc-meta-row">
+                        <div class="rc-mc">
+                            <div class="rc-mk">Subject</div>
+                            <div class="rc-mv">News</div>
+                        </div>
+                        <div class="rc-mc">
+                            <div class="rc-mk">Date</div>
+                            <div class="rc-mv">December 25, 2017</div>
+                        </div>
+                        <div class="rc-mc">
+                            <div class="rc-mk">Label (derived)</div>
+                            <div class="rc-mv" style="color:var(--red);">1 — FAKE</div>
+                        </div>
+                        <div class="rc-mc">
+                            <div class="rc-mk">Source File</div>
+                            <div class="rc-mv">Fake.csv</div>
+                        </div>
+                        <div class="rc-mc">
+                            <div class="rc-mk">Dateline</div>
+                            <div class="rc-mv" style="color:var(--red);">None (flag)</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="record-card rev" data-label="fake">
+                    <div class="rc-stripe fake"></div>
+                    <div class="rc-top fake-bg">
+                        <div>
+                            <div class="rc-source-line">Fake.csv · Row 6 · Fake News Article</div>
+                            <div class="rc-headline">Fresh Off The Golf Course, Trump Lashes Out At FBI Deputy Director
+                                And James Comey</div>
+                        </div>
+                        <div class="rc-chip chip-fake">● FAKE</div>
+                    </div>
+                    <div class="rc-excerpt">
+                        "Donald Trump spent a good portion of his day at his golf club, marking the 84th day he's done
+                        so since..."
+                        <br><em>Note:</em> Editorialising ("Fresh Off The Golf Course"), counting days to imply
+                        criticism, lacks neutral framing. The "84th day" stat is designed to frame rather than inform.
+                    </div>
+                    <div class="rc-meta-row">
+                        <div class="rc-mc">
+                            <div class="rc-mk">Subject</div>
+                            <div class="rc-mv">News</div>
+                        </div>
+                        <div class="rc-mc">
+                            <div class="rc-mk">Date</div>
+                            <div class="rc-mv">December 23, 2017</div>
+                        </div>
+                        <div class="rc-mc">
+                            <div class="rc-mk">Label (derived)</div>
+                            <div class="rc-mv" style="color:var(--red);">1 — FAKE</div>
+                        </div>
+                        <div class="rc-mc">
+                            <div class="rc-mk">Source File</div>
+                            <div class="rc-mv">Fake.csv</div>
+                        </div>
+                        <div class="rc-mc">
+                            <div class="rc-mk">Dateline</div>
+                            <div class="rc-mv" style="color:var(--red);">None (flag)</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="record-card rev" data-label="fake">
+                    <div class="rc-stripe fake"></div>
+                    <div class="rc-top fake-bg">
+                        <div>
+                            <div class="rc-source-line">Fake.csv · Row 10 · Fake News Article</div>
+                            <div class="rc-headline">Papa John's Founder Retires, Figures Out Racism Is Bad For Business
+                            </div>
+                        </div>
+                        <div class="rc-chip chip-fake">● FAKE</div>
+                    </div>
+                    <div class="rc-excerpt">
+                        "A centerpiece of Donald Trump's campaign, and now his presidency, has been his white
+                        supremacist way..."
+                        <br><em>Note:</em> Extreme editorial framing ("white supremacist way"), sarcastic headline
+                        construction ("Figures Out"), and unsubstantiated political linking. No wire service would use
+                        this language.
+                    </div>
+                    <div class="rc-meta-row">
+                        <div class="rc-mc">
+                            <div class="rc-mk">Subject</div>
+                            <div class="rc-mv">News</div>
+                        </div>
+                        <div class="rc-mc">
+                            <div class="rc-mk">Date</div>
+                            <div class="rc-mv">December 21, 2017</div>
+                        </div>
+                        <div class="rc-mc">
+                            <div class="rc-mk">Label (derived)</div>
+                            <div class="rc-mv" style="color:var(--red);">1 — FAKE</div>
+                        </div>
+                        <div class="rc-mc">
+                            <div class="rc-mk">Source File</div>
+                            <div class="rc-mv">Fake.csv</div>
+                        </div>
+                        <div class="rc-mc">
+                            <div class="rc-mk">Dateline</div>
+                            <div class="rc-mv" style="color:var(--red);">None (flag)</div>
+                        </div>
+                    </div>
+                </div>
+
+
+                <div class="record-card rev" data-label="real">
+                    <div class="rc-stripe real"></div>
+                    <div class="rc-top real-bg">
+                        <div>
+                            <div class="rc-source-line">True.csv · Row 0 · Reuters Wire Article</div>
+                            <div class="rc-headline">As U.S. budget fight looms, Republicans flip their fiscal script
+                            </div>
+                        </div>
+                        <div class="rc-chip chip-real">● REAL</div>
+                    </div>
+                    <div class="rc-excerpt">
+                        "WASHINGTON (Reuters) - The head of a conservative Republican faction in the U.S. Congress, who
+                        voted against a huge expansion of the national debt..."
+                        <br><em>Note:</em> Opens with WASHINGTON (Reuters) dateline. Neutral framing ("budget fight"),
+                        attribution within sentence, no emotional language — classic Reuters wire format.
+                    </div>
+                    <div class="rc-meta-row">
+                        <div class="rc-mc">
+                            <div class="rc-mk">Subject</div>
+                            <div class="rc-mv">politicsNews</div>
+                        </div>
+                        <div class="rc-mc">
+                            <div class="rc-mk">Date</div>
+                            <div class="rc-mv">December 31, 2017</div>
+                        </div>
+                        <div class="rc-mc">
+                            <div class="rc-mk">Label (derived)</div>
+                            <div class="rc-mv" style="color:var(--real-col);">0 — REAL</div>
+                        </div>
+                        <div class="rc-mc">
+                            <div class="rc-mk">Source File</div>
+                            <div class="rc-mv">True.csv</div>
+                        </div>
+                        <div class="rc-mc">
+                            <div class="rc-mk">Dateline</div>
+                            <div class="rc-mv" style="color:var(--real-col);">WASHINGTON (Reuters)</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="record-card rev" data-label="real">
+                    <div class="rc-stripe real"></div>
+                    <div class="rc-top real-bg">
+                        <div>
+                            <div class="rc-source-line">True.csv · Row 1 · Reuters Wire Article</div>
+                            <div class="rc-headline">U.S. military to accept transgender recruits on Monday: Pentagon
+                            </div>
+                        </div>
+                        <div class="rc-chip chip-real">● REAL</div>
+                    </div>
+                    <div class="rc-excerpt">
+                        "WASHINGTON (Reuters) - Transgender people will be allowed for the first time to enlist in the
+                        U.S. military starting on Monday..."
+                        <br><em>Note:</em> Attribution to Pentagon in headline ("Pentagon"), precise timeline
+                        ("Monday"), neutral descriptive language, Reuters dateline. Classic inverted-pyramid news
+                        structure.
+                    </div>
+                    <div class="rc-meta-row">
+                        <div class="rc-mc">
+                            <div class="rc-mk">Subject</div>
+                            <div class="rc-mv">politicsNews</div>
+                        </div>
+                        <div class="rc-mc">
+                            <div class="rc-mk">Date</div>
+                            <div class="rc-mv">December 29, 2017</div>
+                        </div>
+                        <div class="rc-mc">
+                            <div class="rc-mk">Label (derived)</div>
+                            <div class="rc-mv" style="color:var(--real-col);">0 — REAL</div>
+                        </div>
+                        <div class="rc-mc">
+                            <div class="rc-mk">Source File</div>
+                            <div class="rc-mv">True.csv</div>
+                        </div>
+                        <div class="rc-mc">
+                            <div class="rc-mk">Dateline</div>
+                            <div class="rc-mv" style="color:var(--real-col);">WASHINGTON (Reuters)</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="record-card rev" data-label="real">
+                    <div class="rc-stripe real"></div>
+                    <div class="rc-top real-bg">
+                        <div>
+                            <div class="rc-source-line">True.csv · Row 3 · Reuters Wire Article</div>
+                            <div class="rc-headline">FBI Russia probe helped by Australian diplomat tip-off: NYT</div>
+                        </div>
+                        <div class="rc-chip chip-real">● REAL</div>
+                    </div>
+                    <div class="rc-excerpt">
+                        "WASHINGTON (Reuters) - Trump campaign adviser George Papadopoulos told an Australian diplomat
+                        in May 2016 that Russia had political dirt on Hillary Clinton..."
+                        <br><em>Note:</em> Secondary source attributed in headline (": NYT"), named individuals with
+                        full titles, specific date cited (May 2016), passive informational tone throughout.
+                    </div>
+                    <div class="rc-meta-row">
+                        <div class="rc-mc">
+                            <div class="rc-mk">Subject</div>
+                            <div class="rc-mv">politicsNews</div>
+                        </div>
+                        <div class="rc-mc">
+                            <div class="rc-mk">Date</div>
+                            <div class="rc-mv">December 30, 2017</div>
+                        </div>
+                        <div class="rc-mc">
+                            <div class="rc-mk">Label (derived)</div>
+                            <div class="rc-mv" style="color:var(--real-col);">0 — REAL</div>
+                        </div>
+                        <div class="rc-mc">
+                            <div class="rc-mk">Source File</div>
+                            <div class="rc-mv">True.csv</div>
+                        </div>
+                        <div class="rc-mc">
+                            <div class="rc-mk">Dateline</div>
+                            <div class="rc-mv" style="color:var(--real-col);">WASHINGTON (Reuters)</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="record-card rev" data-label="real">
+                    <div class="rc-stripe real"></div>
+                    <div class="rc-top real-bg">
+                        <div>
+                            <div class="rc-source-line">True.csv · Row 4 · Reuters Wire Article</div>
+                            <div class="rc-headline">Trump wants Postal Service to charge 'much more' for Amazon
+                                shipments</div>
+                        </div>
+                        <div class="rc-chip chip-real">● REAL</div>
+                    </div>
+                    <div class="rc-excerpt">
+                        "SEATTLE/WASHINGTON (Reuters) - President Donald Trump called on the U.S. Postal Service on
+                        Friday to charge 'much more' for delivering Amazon packages..."
+                        <br><em>Note:</em> Dual-city dateline (SEATTLE/WASHINGTON), exact quote attribution with
+                        quotation marks, precise day reference ("on Friday"), subject identified with full title.
+                    </div>
+                    <div class="rc-meta-row">
+                        <div class="rc-mc">
+                            <div class="rc-mk">Subject</div>
+                            <div class="rc-mv">politicsNews</div>
+                        </div>
+                        <div class="rc-mc">
+                            <div class="rc-mk">Date</div>
+                            <div class="rc-mv">December 29, 2017</div>
+                        </div>
+                        <div class="rc-mc">
+                            <div class="rc-mk">Label (derived)</div>
+                            <div class="rc-mv" style="color:var(--real-col);">0 — REAL</div>
+                        </div>
+                        <div class="rc-mc">
+                            <div class="rc-mk">Source File</div>
+                            <div class="rc-mv">True.csv</div>
+                        </div>
+                        <div class="rc-mc">
+                            <div class="rc-mk">Dateline</div>
+                            <div class="rc-mv" style="color:var(--real-col);">SEATTLE/WASHINGTON (Reuters)</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="record-card rev" data-label="real">
+                    <div class="rc-stripe real"></div>
+                    <div class="rc-top real-bg">
+                        <div>
+                            <div class="rc-source-line">True.csv · Row 9 · Reuters Wire Article</div>
+                            <div class="rc-headline">Alabama official to certify Senator-elect Jones today despite
+                                challenge: CNN</div>
+                        </div>
+                        <div class="rc-chip chip-real">● REAL</div>
+                    </div>
+                    <div class="rc-excerpt">
+                        "WASHINGTON (Reuters) - Alabama Secretary of State John Merrill said he will certify Democratic
+                        Senator-elect Doug Jones today despite a legal challenge..."
+                        <br><em>Note:</em> Named official with full title (Secretary of State John Merrill), specific
+                        subject named (Doug Jones), secondary attribution (CNN), neutral "despite" rather than
+                        evaluative framing.
+                    </div>
+                    <div class="rc-meta-row">
+                        <div class="rc-mc">
+                            <div class="rc-mk">Subject</div>
+                            <div class="rc-mv">politicsNews</div>
+                        </div>
+                        <div class="rc-mc">
+                            <div class="rc-mk">Date</div>
+                            <div class="rc-mv">December 28, 2017</div>
+                        </div>
+                        <div class="rc-mc">
+                            <div class="rc-mk">Label (derived)</div>
+                            <div class="rc-mv" style="color:var(--real-col);">0 — REAL</div>
+                        </div>
+                        <div class="rc-mc">
+                            <div class="rc-mk">Source File</div>
+                            <div class="rc-mv">True.csv</div>
+                        </div>
+                        <div class="rc-mc">
+                            <div class="rc-mk">Dateline</div>
+                            <div class="rc-mv" style="color:var(--real-col);">WASHINGTON (Reuters)</div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <p style="margin-top:2.5rem;">Below is exactly how these records sit inside each CSV file — <span
+                    style="font-family:'JetBrains Mono',monospace;font-size:12px;">title, text, subject, date</span> —
+                four comma-separated columns with a header row, UTF-8 encoded. The label is not a column; it is assigned
+                after loading both files and concatenating.</p>
+
+            <div class="csv-raw">
+                <pre><span class="cm"># ─── Fake.csv ─────────────────────────────────────────────────────────────────────────────</span>
+<span class="cf">title</span>,<span class="cf">text</span>,<span class="cf">subject</span>,<span class="cf">date</span>
+
+<span class="cF">"Donald Trump Sends Out Embarrassing New Year's Eve Message; This is Disturbing"</span>,<span class="cs">"Donald Trump just couldn't wish all Americans a Happy New Year and leave it at that. Instead, he had..."</span>,<span class="cn">News</span>,<span class="cn">December 31, 2017</span>
+
+<span class="cF">"Drunk Bragging Trump Staffer Started Russian Collusion Investigation"</span>,<span class="cs">"House Intelligence Committee Chairman Devin Nunes is going to have a bad day. He's been under the as..."</span>,<span class="cn">News</span>,<span class="cn">December 31, 2017</span>
+
+<span class="cF">"Sheriff David Clarke Becomes An Internet Joke For Threatening To Poke People 'In The Eye'"</span>,<span class="cs">"On Friday, it was revealed that former Milwaukee Sheriff David Clarke, who was being considered for..."</span>,<span class="cn">News</span>,<span class="cn">December 30, 2017</span>
+
+<span class="cF">"Pope Francis Just Called Out Donald Trump During His Christmas Speech"</span>,<span class="cs">"Pope Francis used his annual Christmas Day message to rebuke Donald Trump without even mentioning hi..."</span>,<span class="cn">News</span>,<span class="cn">December 25, 2017</span>
+
+<span class="cF">"Fresh Off The Golf Course, Trump Lashes Out At FBI Deputy Director And James Comey"</span>,<span class="cs">"Donald Trump spent a good portion of his day at his golf club, marking the 84th day he's done so sin..."</span>,<span class="cn">News</span>,<span class="cn">December 23, 2017</span>
+
+<span class="cm"># ─── True.csv ─────────────────────────────────────────────────────────────────────────────</span>
+<span class="cf">title</span>,<span class="cf">text</span>,<span class="cf">subject</span>,<span class="cf">date</span>
+
+<span class="cR">"As U.S. budget fight looms, Republicans flip their fiscal script"</span>,<span class="cs">"WASHINGTON (Reuters) - The head of a conservative Republican faction in the U.S. Congress, who voted..."</span>,<span class="cn">politicsNews</span>,<span class="cn">December 31, 2017</span>
+
+<span class="cR">"U.S. military to accept transgender recruits on Monday: Pentagon"</span>,<span class="cs">"WASHINGTON (Reuters) - Transgender people will be allowed for the first time to enlist in the U.S. m..."</span>,<span class="cn">politicsNews</span>,<span class="cn">December 29, 2017</span>
+
+<span class="cR">"FBI Russia probe helped by Australian diplomat tip-off: NYT"</span>,<span class="cs">"WASHINGTON (Reuters) - Trump campaign adviser George Papadopoulos told an Australian diplomat in May..."</span>,<span class="cn">politicsNews</span>,<span class="cn">December 30, 2017</span>
+
+<span class="cR">"Trump wants Postal Service to charge 'much more' for Amazon shipments"</span>,<span class="cs">"SEATTLE/WASHINGTON (Reuters) - President Donald Trump called on the U.S. Postal Service on Friday to..."</span>,<span class="cn">politicsNews</span>,<span class="cn">December 29, 2017</span>
+
+<span class="cR">"Alabama official to certify Senator-elect Jones today despite challenge: CNN"</span>,<span class="cs">"WASHINGTON (Reuters) - Alabama Secretary of State John Merrill said he will certify Democratic Senat..."</span>,<span class="cn">politicsNews</span>,<span class="cn">December 28, 2017</span></pre>
+            </div>
+
+            <div class="leakage-grid rev">
+                <div class="lg-panel">
+                    <div class="lg-header bad">⚠ Fake Article Linguistic Patterns (Fake.csv)</div>
+                    <div class="lg-body">
+                        <div class="lg-item">
+                            <div class="lg-dot dot-bad"></div>Sensationalist or inflammatory headline verbs: <em>"Lashes
+                                Out," "Sends Out," "Becomes An Internet Joke"</em>
+                        </div>
+                        <div class="lg-item">
+                            <div class="lg-dot dot-bad"></div>Evaluative adjectives in headlines: <em>"Embarrassing,"
+                                "INSANELY Racist," "Disturbing"</em>
+                        </div>
+                        <div class="lg-item">
+                            <div class="lg-dot dot-bad"></div>ALL CAPS words for emphasis: <em>"WATCH:", "INSANELY,"
+                                "SHREDS"</em>
+                        </div>
+                        <div class="lg-item">
+                            <div class="lg-dot dot-bad"></div>No dateline, no named wire source, no "said" + attribution
+                            structure
+                        </div>
+                        <div class="lg-item">
+                            <div class="lg-dot dot-bad"></div>Subject tag is almost always <code
+                                style="font-size:11px;background:var(--red-pale);padding:1px 4px;">"News"</code> — the
+                            strongest single leaker feature
+                        </div>
+                    </div>
+                </div>
+                <div class="lg-panel">
+                    <div class="lg-header good">✓ Real Article Linguistic Patterns (True.csv)</div>
+                    <div class="lg-body">
+                        <div class="lg-item">
+                            <div class="lg-dot dot-good"></div>CITY (Reuters) dateline opens every article body — nearly
+                            100% consistent
+                        </div>
+                        <div class="lg-item">
+                            <div class="lg-dot dot-good"></div>Headline attribution with colon: <em>"...says Pentagon,"
+                                "...NYT," "...CNN"</em>
+                        </div>
+                        <div class="lg-item">
+                            <div class="lg-dot dot-good"></div>Named individuals with full titles: <em>"Alabama
+                                Secretary of State John Merrill"</em>
+                        </div>
+                        <div class="lg-item">
+                            <div class="lg-dot dot-good"></div>Neutral temporal language: <em>"on Friday," "starting
+                                Monday," "said he will"</em>
+                        </div>
+                        <div class="lg-item">
+                            <div class="lg-dot dot-good"></div>Subject tag is exclusively <code
+                                style="font-size:11px;background:var(--real-dim);padding:1px 4px;">"politicsNews"</code>
+                            or <code
+                                style="font-size:11px;background:var(--real-dim);padding:1px 4px;">"worldnews"</code>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="callout info">
+                <div class="callout-lbl">Research Insight — The Reuters Dateline Problem</div>
+                <p>Because every real article begins with <strong>"CITY (Reuters) -"</strong>, a model that simply
+                    checks for the presence of "(Reuters)" in the first 30 characters achieves near-perfect accuracy
+                    with zero machine learning. This makes ISOT deceptively easy. For meaningful results, <strong>strip
+                        the dateline prefix, drop the subject field, and test on cross-publisher splits</strong> where
+                    the model cannot rely on publication style cues.</p>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="sec-hd">
+                <div class="sec-num">04</div>
+                <div>
+                    <span class="sec-eyebrow">Temporal Coverage</span>
+                    <h2 class="sec-title">Article Volume Over Time</h2>
+                </div>
+            </div>
+
+            <p>The dataset spans January 2016 to December 2017 — two full years covering the 2016 US presidential
+                election, the Trump transition, and the first year of the Trump presidency. Article volume grows
+                dramatically over time, with the densest coverage in Q3–Q4 2017 as political news activity intensified.
+            </p>
+
+            <div class="timeline-chart rev">
+                <div class="tc-title">Approximate Article Volume by Period (True.csv — Reuters Coverage)</div>
+                <svg width="100%" height="220" viewBox="0 0 800 220" preserveAspectRatio="xMidYMid meet"
+                    style="display:block;min-height:180px;">
+                    <line x1="80" y1="10" x2="80" y2="170" stroke="#0a0a0a" stroke-width="1.5" />
+                    <line x1="80" y1="170" x2="790" y2="170" stroke="#0a0a0a" stroke-width="1.5" />
+
+                    <line x1="80" y1="50" x2="790" y2="50" stroke="#d8d4ce" stroke-width="0.8" stroke-dasharray="3,3" />
+                    <line x1="80" y1="90" x2="790" y2="90" stroke="#d8d4ce" stroke-width="0.8" stroke-dasharray="3,3" />
+                    <line x1="80" y1="130" x2="790" y2="130" stroke="#d8d4ce" stroke-width="0.8"
+                        stroke-dasharray="3,3" />
+
+                    <text x="74" y="14" font-family="JetBrains Mono,monospace" font-size="8" fill="#6a6a72"
+                        text-anchor="end">4000</text>
+                    <text x="74" y="54" font-family="JetBrains Mono,monospace" font-size="8" fill="#6a6a72"
+                        text-anchor="end">2500</text>
+                    <text x="74" y="94" font-family="JetBrains Mono,monospace" font-size="8" fill="#6a6a72"
+                        text-anchor="end">1200</text>
+                    <text x="74" y="134" font-family="JetBrains Mono,monospace" font-size="8" fill="#6a6a72"
+                        text-anchor="end">500</text>
+
+                    <g fill="var(--real-col)" opacity="0.75">
+                        <rect x="84" y="150" width="30" height="20" />
+                        <rect x="119" y="144" width="30" height="26" />
+                        <rect x="154" y="152" width="30" height="18" />
+                        <rect x="189" y="151" width="30" height="19" />
+                        <rect x="224" y="150" width="30" height="20" />
+                        <rect x="259" y="155" width="30" height="15" />
+                        <rect x="294" y="154" width="30" height="16" />
+                        <rect x="329" y="153" width="30" height="17" />
+                        <rect x="364" y="140" width="30" height="30" />
+                        <rect x="399" y="150" width="30" height="20" />
+                        <rect x="434" y="128" width="30" height="42" />
+                        <rect x="469" y="143" width="30" height="27" />
+                        <rect x="504" y="139" width="30" height="31" />
+                        <rect x="539" y="146" width="30" height="24" />
+                        <rect x="574" y="144" width="30" height="26" />
+                        <rect x="609" y="143" width="30" height="27" />
+                        <rect x="644" y="90" width="30" height="80" />
+                        <rect x="679" y="10" width="30" height="160" fill="var(--red)" opacity="0.85" />
+                        <rect x="714" y="20" width="30" height="150" fill="var(--red)" opacity="0.7" />
+                        <rect x="749" y="40" width="30" height="130" fill="var(--red)" opacity="0.6" />
+                    </g>
+
+                    <text x="99" y="185" font-family="JetBrains Mono,monospace" font-size="7" fill="#6a6a72"
+                        text-anchor="middle">Jan'16</text>
+                    <text x="399" y="185" font-family="JetBrains Mono,monospace" font-size="7" fill="#6a6a72"
+                        text-anchor="middle">Jan'17</text>
+                    <text x="694" y="185" font-family="JetBrains Mono,monospace" font-size="7" fill="#6a6a72"
+                        text-anchor="middle">Oct'17</text>
+                    <text x="764" y="185" font-family="JetBrains Mono,monospace" font-size="7" fill="#6a6a72"
+                        text-anchor="middle">Dec'17</text>
+
+                    <text x="694" y="6" font-family="JetBrains Mono,monospace" font-size="8" fill="var(--red)"
+                        text-anchor="middle">Peak: 3,806</text>
+                    <text x="694" y="16" font-family="JetBrains Mono,monospace" font-size="7" fill="var(--red)"
+                        text-anchor="middle">Oct–Nov '17</text>
+
+                    <rect x="84" y="200" width="10" height="8" fill="var(--real-col)" opacity="0.75" />
+                    <text x="98" y="208" font-family="JetBrains Mono,monospace" font-size="8" fill="#6a6a72">Moderate
+                        volume</text>
+                    <rect x="230" y="200" width="10" height="8" fill="var(--red)" opacity="0.85" />
+                    <text x="244" y="208" font-family="JetBrains Mono,monospace" font-size="8"
+                        fill="#6a6a72">High-volume periods (Q4 2017)</text>
+                </svg>
+            </div>
+
+            <div class="callout tip">
+                <div class="callout-lbl">Temporal Split Recommendation</div>
+                <p>For a realistic evaluation, split chronologically: train on 2016 and early 2017, test on late 2017.
+                    This simulates deployment conditions far better than random splits and tests whether detectors
+                    generalise across political cycles, not just across randomly held-out articles from the same time
+                    period.</p>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="sec-hd">
+                <div class="sec-num">05</div>
+                <div>
+                    <span class="sec-eyebrow">Implementation</span>
+                    <h2 class="sec-title">Loading, Cleaning & Modelling</h2>
+                </div>
+            </div>
+
+            <div class="pipeline stag">
+                <div class="ps">
+                    <div class="ps-num">01</div>
+                    <div class="ps-title">Load Both CSVs</div>
+                    <div class="ps-desc">Read True.csv and Fake.csv separately with pandas. Assign labels (0/1) before
+                        concatenating. Shuffle the combined DataFrame to break file-order bias.</div>
+                </div>
+                <div class="ps">
+                    <div class="ps-num">02</div>
+                    <div class="ps-title">Drop Subject Field</div>
+                    <div class="ps-desc">Remove the subject column entirely. If you must use it, explicitly ablate and
+                        document results both with and without — subject-included results are not comparable to
+                        cross-dataset benchmarks.</div>
+                </div>
+                <div class="ps">
+                    <div class="ps-num">03</div>
+                    <div class="ps-title">Strip Dateline</div>
+                    <div class="ps-desc">Remove the "CITY (Reuters) -" prefix from real article text using regex. This
+                        prevents the model from exploiting the publication-style signal rather than learning semantic
+                        content.</div>
+                </div>
+                <div class="ps">
+                    <div class="ps-num">04</div>
+                    <div class="ps-title">Temporal Split</div>
+                    <div class="ps-desc">Parse the date column and sort chronologically. Use 70/15/15 train/val/test
+                        with the test set covering the most recent dates — not random splits.</div>
+                </div>
+            </div>
+
+            <div class="code-block">
+                <pre><span class="cc"># ISOT Dataset — Complete Load, Clean & Feature Engineering Pipeline</span>
+<span class="ck">import</span> pandas <span class="ck">as</span> pd
+<span class="ck">import</span> re, numpy <span class="ck">as</span> np
+<span class="ck">from</span> sklearn.model_selection <span class="ck">import</span> train_test_split
+
+<span class="cc"># 1. Load both files and assign labels</span>
+real = pd.read_csv(<span class="cstr">"./True.csv"</span>).assign(label=<span class="cnum">0</span>, source=<span class="cstr">"reuters"</span>)
+fake = pd.read_csv(<span class="cstr">"./Fake.csv"</span>).assign(label=<span class="cnum">1</span>, source=<span class="cstr">"unreliable"</span>)
+
+df = pd.concat([real, fake], ignore_index=<span class="ck">True</span>)
+df = df.sample(frac=<span class="cnum">1</span>, random_state=<span class="cnum">42</span>).reset_index(drop=<span class="ck">True</span>)
+
+<span class="cc"># 2. Drop subject (label leaker!) — CRITICAL</span>
+df = df.drop(columns=[<span class="cstr">"subject"</span>])
+
+<span class="cc"># 3. Strip Reuters dateline from real article text</span>
+<span class="ck">def</span> strip_dateline(text: str) -> str:
+    <span class="cc"># matches "CITY (Reuters) -" and "CITY/CITY (Reuters) -"</span>
+    pattern = <span class="cstr">r'^[A-Z\s/]+ \(Reuters\)\s*[-–]\s*'</span>
+    <span class="ck">return</span> re.sub(pattern, <span class="cstr">''</span>, str(text)).strip()
+
+df[<span class="cstr">"text_clean"</span>] = df[<span class="cstr">"text"</span>].apply(strip_dateline)
+
+<span class="cc"># 4. Build content field (title + cleaned text)</span>
+df[<span class="cstr">"content"</span>] = df[<span class="cstr">"title"</span>].fillna(<span class="cstr">""</span>) + <span class="cstr">" [SEP] "</span> + df[<span class="cstr">"text_clean"</span>].fillna(<span class="cstr">""</span>)
+
+<span class="cc"># 5. Parse date for temporal split</span>
+df[<span class="cstr">"date_parsed"</span>] = pd.to_datetime(df[<span class="cstr">"date"</span>], format=<span class="cstr">"%B %d, %Y"</span>, errors=<span class="cstr">"coerce"</span>)
+df = df.sort_values(<span class="cstr">"date_parsed"</span>).reset_index(drop=<span class="ck">True</span>)
+
+<span class="cc"># 6. Chronological train / val / test split</span>
+n = len(df)
+train_df = df.iloc[:<span class="ck">int</span>(n * <span class="cnum">0.70</span>)]
+val_df   = df.iloc[<span class="ck">int</span>(n * <span class="cnum">0.70</span>):<span class="ck">int</span>(n * <span class="cnum">0.85</span>)]
+test_df  = df.iloc[<span class="ck">int</span>(n * <span class="cnum">0.85</span>):]
+
+print(f<span class="cstr">"Train: {len(train_df)} | Val: {len(val_df)} | Test: {len(test_df)}"</span>)
+print(f<span class="cstr">"Train date range: {train_df['date_parsed'].min()} → {train_df['date_parsed'].max()}"</span>)
+print(f<span class="cstr">"Test  date range: {test_df['date_parsed'].min()} → {test_df['date_parsed'].max()}"</span>)
+print(train_df[<span class="cstr">"label"</span>].value_counts())</pre>
+            </div>
+
+            <div class="code-block">
+                <pre><span class="cc"># BERT fine-tuning on cleaned ISOT text</span>
+<span class="ck">from</span> transformers <span class="ck">import</span> AutoTokenizer, AutoModelForSequenceClassification, Trainer, TrainingArguments
+<span class="ck">from</span> datasets <span class="ck">import</span> Dataset
+
+MODEL = <span class="cstr">"bert-base-uncased"</span>
+tokenizer = AutoTokenizer.from_pretrained(MODEL)
+
+<span class="ck">def</span> tok(batch):
+    <span class="ck">return</span> tokenizer(batch[<span class="cstr">"content"</span>],
+                     truncation=<span class="ck">True</span>, padding=<span class="cstr">"max_length"</span>,
+                     max_length=<span class="cnum">512</span>)
+
+<span class="ck">def</span> make_ds(df):
+    ds = Dataset.from_pandas(df[[<span class="cstr">"content"</span>,<span class="cstr">"label"</span>]])
+    <span class="ck">return</span> ds.map(tok, batched=<span class="ck">True</span>)
+
+hf_train = make_ds(train_df)
+hf_val   = make_ds(val_df)
+hf_test  = make_ds(test_df)
+
+model = AutoModelForSequenceClassification.from_pretrained(MODEL, num_labels=<span class="cnum">2</span>)
+
+args = TrainingArguments(
+    output_dir=<span class="cstr">"./isot-bert"</span>,
+    num_train_epochs=<span class="cnum">3</span>,
+    per_device_train_batch_size=<span class="cnum">16</span>,
+    evaluation_strategy=<span class="cstr">"epoch"</span>,
+    learning_rate=<span class="cnum">2e-5</span>,
+    weight_decay=<span class="cnum">0.01</span>,
+    load_best_model_at_end=<span class="ck">True</span>,
+    warmup_ratio=<span class="cnum">0.06</span>,
+    save_strategy=<span class="cstr">"epoch"</span>,
+)
+
+trainer = Trainer(model=model, args=args,
+                  train_dataset=hf_train, eval_dataset=hf_val)
+trainer.train()
+results = trainer.evaluate(hf_test)
+print(results)</pre>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="sec-hd">
+                <div class="sec-num">06</div>
+                <div>
+                    <span class="sec-eyebrow">Published Results</span>
+                    <h2 class="sec-title">Model Benchmark Landscape</h2>
+                </div>
+            </div>
+
+            <p>ISOT's near-100% BERT accuracy is the most widely cited — and most widely misinterpreted — result in fake
+                news research. The figures below reflect results with the subject field dropped and a random 80/20
+                train/test split, as used in most published papers. Chronological split accuracy is typically 5–10
+                points lower.</p>
+
+            <table class="bench-tbl rev">
+                <thead>
+                    <tr>
+                        <th>Model</th>
+                        <th>Features</th>
+                        <th>Split Type</th>
+                        <th>Accuracy</th>
+                        <th>F1 (Fake)</th>
+                        <th>Notes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Naive Bayes (TF-IDF)</td>
+                        <td>Unigrams</td>
+                        <td>Random 80/20</td>
+                        <td>92–94%</td>
+                        <td>~0.93</td>
+                        <td>Simple but strong baseline</td>
+                    </tr>
+                    <tr>
+                        <td>Logistic Regression</td>
+                        <td>TF-IDF + bigrams</td>
+                        <td>Random 80/20</td>
+                        <td>94–96%</td>
+                        <td>~0.95</td>
+                        <td>Fast, interpretable, competitive</td>
+                    </tr>
+                    <tr>
+                        <td>BiLSTM (GloVe)</td>
+                        <td>Word embeddings</td>
+                        <td>Random 80/20</td>
+                        <td>97–98%</td>
+                        <td>~0.97</td>
+                        <td>Seq. model captures headline patterns</td>
+                    </tr>
+                    <tr>
+                        <td>BERT (no dateline strip)</td>
+                        <td>title + text</td>
+                        <td>Random 80/20</td>
+                        <td><span class="acc-high">>99%</span></td>
+                        <td>~0.99</td>
+                        <td>Learns "Reuters" token — misleading</td>
+                    </tr>
+                    <tr>
+                        <td>BERT (dateline stripped)</td>
+                        <td>title + text_clean</td>
+                        <td>Random 80/20</td>
+                        <td>97–98%</td>
+                        <td>~0.97</td>
+                        <td>More honest result</td>
+                    </tr>
+                    <tr>
+                        <td>BERT (dateline stripped)</td>
+                        <td>title + text_clean</td>
+                        <td>Chronological</td>
+                        <td>90–94%</td>
+                        <td>~0.91</td>
+                        <td>Most realistic deployment estimate</td>
+                    </tr>
+                    <tr>
+                        <td>Cross-dataset (→FakeNewsNet)</td>
+                        <td>BERT fine-tuned on ISOT</td>
+                        <td>Transfer</td>
+                        <td>60–75%</td>
+                        <td>~0.65</td>
+                        <td>Reveals domain-specific overfitting</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="callout danger">
+                <div class="callout-lbl">Benchmark Credibility Warning</div>
+                <p>Papers reporting >99% accuracy on ISOT without specifying (a) whether subject was dropped, (b)
+                    whether dateline was stripped, and (c) what split type was used should be treated with scepticism.
+                    These three variables alone account for a ~10 percentage-point spread in results. Always report all
+                    three conditions explicitly.</p>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="sec-hd">
+                <div class="sec-num">07</div>
+                <div>
+                    <span class="sec-eyebrow">Critical Analysis</span>
+                    <h2 class="sec-title">Limitations & Responsible Use</h2>
+                </div>
+            </div>
+
+            <div class="pipeline stag">
+                <div class="ps">
+                    <div class="ps-num">!</div>
+                    <div class="ps-title">Source-Level Labels</div>
+                    <div class="ps-desc">Labels are assigned at the outlet level — all Reuters = real, all flagged sites
+                        = fake. This means a model learns to detect publication style, not claim veracity. An article
+                        from a flagged site that happens to be factually correct is still labelled fake.</div>
+                </div>
+                <div class="ps">
+                    <div class="ps-num">!</div>
+                    <div class="ps-title">US Politics Concentration</div>
+                    <div class="ps-desc">Both files focus heavily on 2016–2017 US political news. Coverage of
+                        international, scientific, health, or economic misinformation is thin. Models trained here
+                        transfer poorly to non-political domains.</div>
+                </div>
+                <div class="ps">
+                    <div class="ps-num">!</div>
+                    <div class="ps-title">Static Snapshot</div>
+                    <div class="ps-desc">The dataset ends December 2017. Post-2017 generative AI content, new
+                        misinformation patterns, and evolved fact-checking norms are entirely absent. Not suitable as a
+                        sole training set for production systems.</div>
+                </div>
+                <div class="ps">
+                    <div class="ps-num">!</div>
+                    <div class="ps-title">No Fine-Grained Labels</div>
+                    <div class="ps-desc">Binary only — no satire, no opinion, no "misleading but not false" class. An
+                        article that is technically true but deliberately framed to deceive is labelled the same as one
+                        that is factually wrong.</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="citation-box rev">
+            <div class="cb-title">REQUIRED CITATION</div>
+            <div class="cb-entry">
+                <strong>Primary Paper:</strong><br>
+                Ahmed H., Traore I., Saad S. (2017). <em>Detection of Online Fake News Using N-Gram Analysis and Machine
+                    Learning Techniques.</em> In: Traore I., Woungang I., Awad A. (eds), Intelligent, Secure, and
+                Dependable Systems in Distributed and Cloud Environments. ISDDC 2017. Lecture Notes in Computer Science,
+                vol 10618. Springer, Cham.
+            </div>
+            <div class="cb-entry">
+                <strong>Second Paper:</strong><br>
+                Ahmed H., Traore I., Saad S. (2018). <em>Detecting opinion spams and fake news using text
+                    classification.</em> Security and Privacy, 1(1), e9. doi:10.1002/spy2.9
+            </div>
+            <div class="cb-entry">
+                <strong>Dataset Download:</strong><br>
+                Kaggle: kaggle.com/datasets/clmentbisaillon/fake-and-real-news-dataset<br>
+                Files: True.csv (23,481 rows) + Fake.csv (21,417 rows) · 4 columns each · UTF-8 CSV
+            </div>
+        </div>
+
+    </div>
+
+    <div class="author-strip">
+        <div class="as-avatar">
+            <img src="https://media.licdn.com/dms/image/v2/D5603AQEsekjn2AZbmQ/profile-displayphoto-scale_400_400/B56ZwVT88PHAAg-/0/1769884080112?e=1773273600&v=beta&t=y83Ygn5dnnwpMpmU-JmOdTro8WexSGVB5WBdrq55thc"
+                alt="Rakesh Raut" onerror="this.style.display='none'">
+        </div>
+        <div class="as-info">
+            <div class="as-lbl">Report Compiled by</div>
+            <div class="as-name">Rakesh Raut</div>
+            <div class="as-desc">
+                Deep-dive technical reference for the ISOT Fake News Dataset (Ahmed, Traore & Saad, 2017–2018).<br>
+                github.com/Rex1671 · linkedin.com/in/rakeshkumarraut
+            </div>
+        </div>
+        <div class="as-links">
+            <a class="as-link" href="https://github.com/Rex1671/" target="_blank">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="rgba(255,255,255,0.5)">
+                    <path
+                        d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
+                </svg>
+                <div><span class="as-link-plat">GitHub</span><span class="as-link-handle">github.com/Rex1671</span>
+                </div>
+            </a>
+            <a class="as-link" href="https://www.linkedin.com/in/rakeshkumarraut/" target="_blank">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="rgba(255,255,255,0.5)">
+                    <path
+                        d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" />
+                </svg>
+                <div><span class="as-link-plat">LinkedIn</span><span class="as-link-handle">rakeshkumarraut</span></div>
+            </a>
+            <a class="as-link" href="https://www.kaggle.com/datasets/csmalarkodi/isot-fake-news-dataset"
+                target="_blank">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="rgba(138,164,184,0.5)">
+                    <path
+                        d="M18.825 23.859c-.022.092-.117.141-.281.141h-3.139c-.187 0-.351-.082-.492-.248l-5.178-6.589-1.448 1.374v5.111c0 .235-.117.352-.351.352H5.505c-.236 0-.354-.117-.354-.352V.353c0-.233.118-.353.354-.353h2.431c.234 0 .351.12.351.353v14.343l6.203-6.272c.165-.165.33-.246.495-.246h3.239c.144 0 .236.06.281.18.046.149.034.238-.036.27l-6.555 6.344 6.836 8.507c.095.104.117.208.075.303z" />
+                </svg>
+                <div>
+                    <span class="as-link-plat">Kaggle Dataset</span>
+                    <span class="as-link-handle">ISOT Fake News Dataset</span>
+                </div>
+            </a>
+        </div>
+    </div>
+
+    <div class="doc-footer">
+        ISOT FAKE NEWS DATASET — TECHNICAL REPORT · Compiled by Rakesh Raut · github.com/Rex1671 · Ahmed, Traore & Saad
+        (2017, 2018) · University of Victoria, Canada
+    </div>
+
+    <script>
+        const sp = document.getElementById('sp');
+        const btt = document.getElementById('btt');
+        window.addEventListener('scroll', () => {
+            const pct = window.scrollY / (document.documentElement.scrollHeight - window.innerHeight) * 100;
+            sp.style.width = pct + '%';
+            btt.classList.toggle('vis', window.scrollY > 400);
+        });
+        btt.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const tabs = document.querySelectorAll('.ftab');
+            const cards = document.querySelectorAll('.record-card');
+
+            const classMap = {
+                'all': 'all-active',
+                'fake': 'fake-active',
+                'real': 'real-active',
+            };
+
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    tabs.forEach(t => {
+                        t.classList.remove('active', 'all-active', 'fake-active', 'real-active');
+                    });
+                    tab.classList.add('active', classMap[tab.dataset.filter] || 'all-active');
+
+                    const f = tab.dataset.filter;
+                    cards.forEach(card => {
+                        if (f === 'all' || card.dataset.label === f) {
+                            card.classList.remove('hidden');
+                        } else {
+                            card.classList.add('hidden');
+                        }
+                    });
+                });
+            });
+        });
+
+        const io = new IntersectionObserver(entries => {
+            entries.forEach(e => {
+                if (!e.isIntersecting) return;
+                const el = e.target;
+                if (el.classList.contains('rev') || el.classList.contains('rev-l')) el.classList.add('vis');
+                if (el.classList.contains('stag')) el.classList.add('vis');
+                if (el.classList.contains('code-block')) el.classList.add('vis');
+                if (el.classList.contains('bb-fill')) setTimeout(() => el.classList.add('anim'), 100);
+                if (el.classList.contains('sec-hd')) el.classList.add('anim');
+                io.unobserve(el);
+            });
+        }, { threshold: 0.05, rootMargin: '0px 0px -50px 0px' });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            document.querySelectorAll('.rev,.rev-l').forEach(el => io.observe(el));
+            document.querySelectorAll('.stag').forEach(el => io.observe(el));
+            document.querySelectorAll('.code-block').forEach(el => io.observe(el));
+            document.querySelectorAll('.bb-fill').forEach(el => io.observe(el));
+            document.querySelectorAll('.sec-hd').forEach(el => io.observe(el));
+
+            document.querySelectorAll('.bench-tbl tbody tr').forEach(tr => {
+                tr.addEventListener('mouseenter', () => tr.style.transform = 'translateX(5px)');
+                tr.addEventListener('mouseleave', () => tr.style.transform = '');
+                tr.style.transition = 'transform 0.2s, background 0.2s';
+            });
+
+            const sections = document.querySelectorAll('.section');
+            const nav = document.createElement('div');
+            nav.style.cssText = 'position:fixed;right:1rem;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:8px;z-index:9000;';
+            sections.forEach((sec, i) => {
+                const d = document.createElement('div');
+                d.style.cssText = 'width:6px;height:6px;border-radius:50%;background:rgba(10,10,10,0.15);cursor:pointer;transition:background 0.3s,transform 0.3s;border:1px solid rgba(10,10,10,0.2);';
+                d.addEventListener('click', () => sec.scrollIntoView({ behavior: 'smooth' }));
+                nav.appendChild(d);
+            });
+            document.body.appendChild(nav);
+
+            const dots = nav.querySelectorAll('div');
+            sections.forEach((sec, i) => {
+                new IntersectionObserver(entries => {
+                    entries.forEach(e => {
+                        dots[i].style.background = e.isIntersecting ? 'var(--red)' : 'rgba(10,10,10,0.15)';
+                        dots[i].style.transform = e.isIntersecting ? 'scale(1.6)' : 'scale(1)';
+                    });
+                }, { threshold: 0.3 }).observe(sec);
+            });
+        });
+
+        setTimeout(() => {
+            document.querySelectorAll('.rev,.rev-l,.stag,.code-block').forEach(el => el.classList.add('vis'));
+            document.querySelectorAll('.bb-fill').forEach(el => el.classList.add('anim'));
+            document.querySelectorAll('.sec-hd').forEach(el => el.classList.add('anim'));
+        }, 2500);
+    </script>
+</body>
+
+</html>
