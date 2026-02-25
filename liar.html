@@ -162,6 +162,82 @@
             padding-left: 18px;
         }
 
+        .kaggle-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            background: rgba(106, 170, 106, 0.1);
+            border: 1px solid rgba(106, 170, 106, 0.3);
+            border-radius: 4px;
+            color: var(--fern) !important;
+            text-decoration: none;
+            font-family: 'Courier Prime', monospace;
+            font-size: 11px;
+            font-weight: 700;
+            transition: all 0.2s;
+            margin: 4px 0;
+            vertical-align: middle;
+            line-height: 1;
+        }
+
+        .kaggle-badge:hover {
+            background: rgba(106, 170, 106, 0.2);
+            border-color: var(--leaf);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(106, 170, 106, 0.2);
+        }
+
+        /* ═══════════ DATASET SWITCHER ═══════════ */
+        .dataset-switcher {
+            position: fixed;
+            bottom: 2rem;
+            left: 50%;
+            transform: translateX(-50%) translateY(20px);
+            display: flex;
+            background: rgba(8, 12, 8, 0.85);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(106, 170, 106, 0.15);
+            padding: 5px;
+            border-radius: 50px;
+            z-index: 9995;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.5s cubic-bezier(0.165, 0.84, 0.44, 1);
+        }
+
+        .dataset-switcher.vis {
+            opacity: 1;
+            pointer-events: all;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        .ds-item {
+            padding: 8px 16px;
+            color: rgba(168, 212, 168, 0.4);
+            text-decoration: none;
+            font-family: 'Courier Prime', monospace;
+            font-size: 9px;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            border-radius: 20px;
+            transition: all 0.2s;
+            white-space: nowrap;
+            cursor: pointer;
+        }
+
+        .ds-item:hover {
+            color: var(--parchment);
+            background: rgba(168, 212, 168, 0.1);
+        }
+
+        .ds-item.active {
+            color: var(--void);
+            background: var(--fern);
+            font-weight: 700;
+        }
+
         /* ══════════════════════════════════════
            PAGE TRANSITION OVERLAY
            ══════════════════════════════════════ */
@@ -2003,7 +2079,12 @@
                 <span>←</span> Dashboard
             </div>
             <div class="cover-nav-brand">Technical Dataset Report · NLP · Fact Verification</div>
-            <div class="cover-nav-meta">Compiled by Rakesh Raut · github.com/Rex1671</div>
+            <div class="cover-nav-meta">
+                <a href="https://www.kaggle.com/datasets/ahmedzeid/liar-dataset" target="_blank"
+                    style="color:var(--fern);text-decoration:none;margin-right:1rem;border:1px solid rgba(168,212,168,0.2);padding:4px 8px;font-family:'Courier Prime',monospace;font-size:9px;">Kaggle
+                    Dataset &#8599;</a>
+                Compiled by Rakesh Raut · github.com/Rex1671
+            </div>
         </nav>
 
         <div class="cover-body">
@@ -2159,8 +2240,16 @@
             <p>The LIAR dataset, introduced by William Yang Wang at EMNLP 2017, represents a fundamental rethinking of
                 how fake news detection should be framed. Rather than the binary real/fake split used by contemporaneous
                 datasets, LIAR maps political statement veracity along a six-point scale drawn from a decade of expert
-                human fact-checking — transforming what was a classification task into something closer to truthfulness
-                grading.</p>
+                human fact-checking &mdash; transforming what was a classification task into something closer to
+                truthfulness
+                grading. View this dataset on <a href="https://www.kaggle.com/datasets/ahmedzeid/liar-dataset"
+                    target="_blank" class="kaggle-badge">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                        <path
+                            d="M18.825 23.859c-.022.092-.117.141-.281.141h-3.139c-.187 0-.351-.082-.492-.248l-5.178-6.589-1.448 1.374v5.111c0 .235-.117.352-.351.352H5.505c-.236 0-.354-.117-.354-.352V.353c0-.233.118-.353.354-.353h2.431c.234 0 .351.12.351.353v14.343l6.203-6.272c.165-.165.33-.246.495-.246h3.239c.144 0 .236.06.285.18.046.149.034.255-.036.315l-6.555 6.344 6.836 8.507c.095.104.117.208.07.335" />
+                    </svg>
+                    Kaggle
+                </a>.</p>
 
             <p>Every statement in LIAR was sourced from <strong>PolitiFact.com</strong>, a Pulitzer Prize–winning
                 fact-checking organisation that has been rating political claims since 2007. Each PolitiFact entry
@@ -3679,6 +3768,15 @@ print(results)</pre>
         arXiv:1705.00648
     </div>
 
+    <!-- DATASET SWITCHER -->
+    <div class="dataset-switcher" id="datasetSwitcher">
+        <a class="ds-item active">Liar</a>
+        <a class="ds-item" onclick="navigateWithTransition('fnd.html', 'FND Dataset', '#03070f')">FND</a>
+        <a class="ds-item" onclick="navigateWithTransition('isot.html', 'ISOT Dataset', '#0a0a0a')">ISOT</a>
+        <a class="ds-item"
+            onclick="navigateWithTransition('fakenewsnet.html', 'FakeNewsNet', '#05060a')">FakeNewsNet</a>
+    </div>
+
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const tabs = document.querySelectorAll('.ftab');
@@ -3701,10 +3799,21 @@ print(results)</pre>
 
         const sp = document.getElementById('sp');
         const btt = document.getElementById('btt');
+        let ticking = false;
         window.addEventListener('scroll', () => {
-            const pct = window.scrollY / (document.documentElement.scrollHeight - window.innerHeight) * 100;
-            sp.style.width = pct + '%';
-            btt.classList.toggle('vis', window.scrollY > 500);
+            if (!ticking) {
+                requestAnimationFrame(() => {
+                    const pct = window.scrollY / (document.documentElement.scrollHeight - window.innerHeight) * 100;
+                    sp.style.width = Math.min(pct, 100) + '%';
+                    const isScrolled = window.scrollY > 500;
+                    if (document.getElementById('btt'))
+                        document.getElementById('btt').classList.toggle('vis', isScrolled);
+                    if (document.getElementById('datasetSwitcher'))
+                        document.getElementById('datasetSwitcher').classList.toggle('vis', isScrolled);
+                    ticking = false;
+                });
+                ticking = true;
+            }
         });
         btt.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
 
